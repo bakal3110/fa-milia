@@ -264,7 +264,7 @@ class HostPanel(QWidget):
         self._timer_row = QWidget()
         self._timer_label = QLabel()
         self._timer_label.setObjectName("TimerLabel")
-        self._timer_pause = _button("⏸ Pauza")
+        self._timer_pause = _button("⏸ Pauza", "Klawisz P")
         self._timer_pause.clicked.connect(self._timer.toggle_pause)
         restart = _button("↻ Od nowa")
         restart.clicked.connect(self._timer.restart)
@@ -533,7 +533,7 @@ class HostPanel(QWidget):
         remaining = self._timer.remaining()
         text = format_seconds(remaining) if remaining > 0 else "koniec czasu!"
         self._timer_label.setText(f"⏱ {text}")
-        self._timer_pause.setText("⏸ Pauza" if self._timer.running else "▶ Wznów")
+        self._timer_pause.setText("⏸ Pauza (P)" if self._timer.running else "▶ Wznów (P)")
         self._timer_pause.setEnabled(remaining > 0)
 
     # --- Akcje z potwierdzeniem i okna dialogowe ----------------------------

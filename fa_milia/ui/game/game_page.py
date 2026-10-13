@@ -82,6 +82,16 @@ class GamePage(QWidget):
     def _add_shortcuts(self, owner: QObject, context: Qt.ShortcutContext) -> None:
         QShortcut(QKeySequence("Space"), owner, self._controller.advance, context=context)
         QShortcut(QKeySequence.StandardKey.Undo, owner, self._controller.undo, context=context)
+        QShortcut(QKeySequence("P"), owner, self._toggle_timer_pause, context=context)
+
+    def _toggle_timer_pause(self) -> None:
+        """Klawisz P: pauza / wznowienie timera."""
+        if not self._timer.active:
+            self._host.show_message("Timer nie odlicza – nie ma czego wstrzymać.")
+            return
+        self._timer.toggle_pause()
+        self._host.show_message("Timer wstrzymany (P – wznów)." if not self._timer.running
+                                else "Timer wznowiony.")
 
     # --- Start i koniec gry ------------------------------------------------
 

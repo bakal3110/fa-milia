@@ -41,6 +41,7 @@ Przy pierwszym uruchomieniu program tworzy katalog danych
 | Spacja | odsłoń odpowiedź / wróć do planszy / dalej |
 | Esc | wstecz; w pytaniu zamyka pytanie; na planszy – menu (z potwierdzeniem) |
 | Ctrl+Z | cofnij ostatnią akcję w grze |
+| P | pauza / wznowienie timera |
 | F2 | pokaż / ukryj panel prowadzącego (tryb jednoekranowy) |
 | F11 | pełny ekran / okno |
 
@@ -67,7 +68,7 @@ przytrzymaniu przycisku „Pokaż mi”.
   większym niż 0. Najpierw kategoria, potem stawki (od 0 do wyniku), pytanie i ocena.
   Gdy nikt nie ma punktów, finał jest pomijany.
 - **Timer** (Ustawienia → Timer i dźwięk): rusza po pokazaniu pytania, znika po odsłonięciu
-  odpowiedzi. Prowadzący może go wstrzymać, wznowić lub uruchomić od nowa.
+  odpowiedzi. Prowadzący może go wstrzymać i wznowić (klawisz P) lub uruchomić od nowa.
 
 ## Dźwięki
 

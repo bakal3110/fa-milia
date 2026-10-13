@@ -50,6 +50,7 @@ SHORTCUTS = [
     ("Spacja", "Odsłoń odpowiedź / wróć do planszy / dalej"),
     ("Esc", "Wstecz; w pytaniu zamyka pytanie; na planszy – menu (z potwierdzeniem)"),
     ("Ctrl+Z", "Cofnij ostatnią akcję w grze"),
+    ("P", "Pauza / wznowienie timera"),
     ("F2", "Pokaż / ukryj panel prowadzącego (tryb jednoekranowy)"),
     ("F11", "Pełny ekran / okno"),
 ]
