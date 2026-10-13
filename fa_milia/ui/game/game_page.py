@@ -12,9 +12,12 @@ from PySide6.QtGui import QGuiApplication, QKeySequence, QScreen, QShortcut
 from PySide6.QtWidgets import QMessageBox, QVBoxLayout, QWidget
 
 from fa_milia.core.game_state import GameState, Phase
+from fa_milia.core.history import GameHistory
 from fa_milia.core.library import Library
+from fa_milia.core.savegame import delete_game, save_game
 from fa_milia.core.models import ContentKind
 from fa_milia.core.settings import Settings
+from fa_milia.core.usage import UsageMemory
 from fa_milia.ui.audio import AudioPlayer
 from fa_milia.ui.game.controller import GameController
 from fa_milia.ui.game.game_screen import GameScreen
@@ -30,9 +33,12 @@ OVERLAY_MAX_HEIGHT = 0.65  # nakładka zajmuje najwyżej 65% wysokości ekranu
 class GamePage(QWidget):
     back_to_menu = Signal()
 
-    def __init__(self, library: Library, settings: Settings, parent: QWidget | None = None) -> None:
+    def __init__(self, library: Library, settings: Settings, usage: UsageMemory,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._library = library
+        self._usage = usage
+        self._save_path = library.data_dir.savegame_file
         self._settings = settings
         self._controller = GameController(self)
         self._audio = AudioPlayer(self)  # dźwięk w pytaniu dźwiękowym
@@ -88,16 +94,27 @@ class GamePage(QWidget):
         self._position_overlay()
 
     def start(self, state: GameState) -> None:
+        """Nowa gra."""
+        self._prepare_screens()
+        self._controller.start(state)
+        self.setFocus()
+
+    def resume(self, history: GameHistory) -> None:
+        """Wznowienie zapisanej gry."""
+        self._prepare_screens()
+        self._controller.resume(history)
+        self._host.show_message("Wznowiono zapisaną grę.")
+        self.setFocus()
+
+    def _prepare_screens(self) -> None:
         self._shown_question_key = None
         host_monitor = self.window().screen()
         choice = choose_game_screen(self._settings, host_monitor)
         self._set_mode(choice.screen)
-        self._controller.start(state)
         if choice.message:
             self._host.show_message(choice.message)
         elif choice.screen is None:
             self._host.show_message("Tryb jednoekranowy: F2 pokazuje i ukrywa ten panel.")
-        self.setFocus()
 
     def is_game_running(self) -> bool:
         state = self._controller.state
@@ -176,6 +193,7 @@ class GamePage(QWidget):
 
     def _refresh(self) -> None:
         state = self._controller.state
+        self._autosave(state)
         self._screen.show_state(state, self._library.media_path, self._controller.show_scores)
         # Liczba widocznych przycisków się zmienia, więc i wysokość panelu.
         # singleShot(0, …) – wykonaj, gdy Qt skończy bieżące przeliczanie układu.
@@ -191,6 +209,9 @@ class GamePage(QWidget):
         if key != self._shown_question_key:
             # Właśnie pokazało się nowe pytanie.
             self._shown_question_key = key
+            if state.phase == Phase.FINAL_QUESTION:
+                # Pytanie finałowe jest „użyte” od chwili wyświetlenia.
+                self._usage.mark_final(state.final.question.id)
             if state.current_question().kind == ContentKind.SOUND:
                 self._play_question_sound()
             if self._settings.timer_enabled:
@@ -199,6 +220,16 @@ class GamePage(QWidget):
                 self._timer.start(seconds)
         if state.is_revealed():
             self._timer.stop()  # po odsłonięciu odpowiedzi timer znika
+
+    def _autosave(self, state: GameState) -> None:
+        """Zapis po każdej akcji. Zakończona gra nie jest już potrzebna – kasujemy zapis."""
+        try:
+            if state.phase == Phase.FINISHED:
+                delete_game(self._save_path)
+            else:
+                save_game(self._save_path, self._controller.history)
+        except OSError as error:
+            self._host.show_message(f"Nie udało się zapisać gry: {error}")
 
     @staticmethod
     def _question_key(state: GameState) -> tuple | None:
@@ -244,9 +275,9 @@ class GamePage(QWidget):
     def confirm_quit(self) -> bool:
         answer = QMessageBox.question(
             self,
-            "Przerwać grę?",
-            "Gra jest w toku. Czy na pewno ją przerwać?\n"
-            "(Zapisywanie i wznawianie gry pojawi się w etapie E5.)",
+            "Wyjść z gry?",
+            "Gra jest w toku. Wyjść do menu?\n"
+            "Gra jest zapisana – dokończysz ją przez „Kontynuuj grę”.",
         )
         return answer == QMessageBox.StandardButton.Yes
 

@@ -33,6 +33,16 @@ class GameController(QObject):
         self.state_changed.emit()
         self.sound.emit("start_rundy")
 
+    def resume(self, history: GameHistory) -> None:
+        """Wznawia zapisaną grę (razem z historią do cofania)."""
+        self._history = history
+        self._show_scores = False
+        self.state_changed.emit()
+
+    @property
+    def history(self) -> GameHistory | None:
+        return self._history
+
     @property
     def state(self) -> GameState | None:
         # Uwaga: po cofnięciu historia podmienia obiekt stanu, dlatego zawsze

@@ -7,7 +7,7 @@ budowę formularza i operacje na konkretnym typie danych.
 """
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from fa_milia.core.library import Library
+from fa_milia.core.usage import UsageMemory
 from fa_milia.ui.audio import AudioPlayer
 
 # Rola, pod którą każdy element listy przechowuje identyfikator obiektu.
@@ -39,10 +40,14 @@ class LibraryEditorPage(QWidget):
     COMPLETE_TEXT = "✔ Kompletne."
     INCOMPLETE_TEXT = "⚠ Niekompletne:"
     DELETE_QUESTION = "Usunąć „{title}”?"
+    USED_SUFFIX = "   · użyta"
+    UNMARK_TEXT = "Oznacz jako nieużytą"
 
-    def __init__(self, library: Library, parent: QWidget | None = None) -> None:
+    def __init__(self, library: Library, usage: UsageMemory,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._library = library
+        self._usage = usage
         self._audio = AudioPlayer(self)
         self._current_id: str | None = None
         self._dirty = False  # czy są niezapisane zmiany
@@ -82,6 +87,13 @@ class LibraryEditorPage(QWidget):
 
     def _create_new_item(self):
         raise NotImplementedError
+
+    def _is_used(self, item_id: str) -> bool:
+        """Czy element był już w grze (pamięć wykorzystania)."""
+        return False
+
+    def _unmark_used(self, item_id: str) -> None:
+        """Odznacza element w pamięci wykorzystania."""
 
     def _confirm_before_save(self, item) -> bool:
         """Dodatkowe pytania przed zapisem. Domyślnie nic nie sprawdza."""
@@ -137,8 +149,13 @@ class LibraryEditorPage(QWidget):
         self._save_button.clicked.connect(self.save)
         self._revert_button = QPushButton("Cofnij zmiany")
         self._revert_button.clicked.connect(self._revert)
+        self._unmark_button = QPushButton(self.UNMARK_TEXT)
+        self._unmark_button.setToolTip("Element był już w grze. Kliknij, żeby losowanie "
+                                       "znów traktowało go jak nowy.")
+        self._unmark_button.clicked.connect(self._unmark_current)
         save_buttons = QHBoxLayout()
         save_buttons.addWidget(self._status_label, stretch=1)
+        save_buttons.addWidget(self._unmark_button)
         save_buttons.addWidget(self._revert_button)
         save_buttons.addWidget(self._save_button)
         right = QWidget()
@@ -217,8 +234,12 @@ class LibraryEditorPage(QWidget):
         for row, item in enumerate(self._all_items()):
             problems = self._item_problems(item)
             title = self._item_title(item)
+            if self._is_used(item.id):
+                title += self.USED_SUFFIX
             list_item = QListWidgetItem(f"⚠ {title}" if problems else title)
             list_item.setData(ID_ROLE, item.id)
+            if self._is_used(item.id):
+                list_item.setForeground(QBrush(QColor("#8a8f99")))
             if problems:
                 list_item.setToolTip("Niekompletne:\n• " + "\n• ".join(problems))
             self._list.addItem(list_item)
@@ -257,6 +278,7 @@ class LibraryEditorPage(QWidget):
         self._dirty = False
         self._form.setEnabled(item is not None)
         self._delete_button.setEnabled(item is not None)
+        self._unmark_button.setVisible(item is not None and self._is_used(item.id))
         if item is not None:
             self._loading = True
             self._load_form(item)
@@ -292,6 +314,13 @@ class LibraryEditorPage(QWidget):
         if self._dirty:
             text += "  (niezapisane zmiany)"
         self._status_label.setText(text)
+
+    def _unmark_current(self) -> None:
+        if self._current_id is None:
+            return
+        self._unmark_used(self._current_id)
+        self._unmark_button.setVisible(False)
+        self._refresh_list(self._current_id)
 
     def _revert(self) -> None:
         self._open_item(self._current_id)

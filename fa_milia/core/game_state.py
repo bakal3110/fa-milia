@@ -94,21 +94,26 @@ class RoundState:
     def is_finished(self) -> bool:
         return self.remaining() == 0
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
+    def to_dict(self, content: bool = True) -> dict[str, Any]:
+        data = {
             "number": self.number,
-            "categories": [c.to_dict() for c in self.categories],
             # Kopiujemy listy! Gdybyśmy zwrócili self.used, migawka w historii
             # wskazywałaby na tę samą listę i zmieniałaby się razem ze stanem gry.
             "used": [list(column) for column in self.used],
             "bonuses": [list(tile) for tile in self.bonuses],
         }
+        if content:
+            data["categories"] = [c.to_dict() for c in self.categories]
+        return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RoundState":
+    def from_dict(cls, data: dict[str, Any],
+                  categories: list[Category] | None = None) -> "RoundState":
+        if categories is None:
+            categories = [Category.from_dict(c) for c in data["categories"]]
         return cls(
             number=data["number"],
-            categories=[Category.from_dict(c) for c in data["categories"]],
+            categories=categories,
             used=[list(column) for column in data["used"]],
             bonuses=[tuple(tile) for tile in data.get("bonuses", [])],
         )
@@ -161,19 +166,22 @@ class FinalState:
     marks: dict[int, bool] = field(default_factory=dict)
     revealed: bool = False
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "question": self.question.to_dict(),
+    def to_dict(self, content: bool = True) -> dict[str, Any]:
+        data = {
             "participants": list(self.participants),
             "wagers": _dict_to_pairs(self.wagers),
             "marks": _dict_to_pairs(self.marks),
             "revealed": self.revealed,
         }
+        if content:
+            data["question"] = self.question.to_dict()
+        return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FinalState":
+    def from_dict(cls, data: dict[str, Any],
+                  question: FinalQuestion | None = None) -> "FinalState":
         return cls(
-            question=FinalQuestion.from_dict(data["question"]),
+            question=question or FinalQuestion.from_dict(data["question"]),
             participants=list(data["participants"]),
             wagers=_pairs_to_dict(data["wagers"]),
             marks=_pairs_to_dict(data["marks"]),
@@ -450,28 +458,47 @@ class GameState:
 
     # --- Zapis do słownika (cofanie, zapis gry) ---------------------------
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, content: bool = True) -> dict[str, Any]:
+        """Stan gry jako słownik (do JSON).
+
+        content=False pomija treść pytań (kategorie i pytanie finałowe), która
+        nie zmienia się w trakcie gry. Tak zapisujemy migawki w historii cofania –
+        dzięki temu są małe, a plik zapisu gry nie rośnie do wielu megabajtów.
+        """
         return {
             "players": [{"name": p.name, "score": p.score} for p in self.players],
-            "rounds": [r.to_dict() for r in self.rounds],
+            "rounds": [r.to_dict(content) for r in self.rounds],
             "round_index": self.round_index,
             "phase": self.phase.value,
             "current": self.current.to_dict() if self.current else None,
             "last_correct": self.last_correct,
-            "final": self.final.to_dict() if self.final else None,
+            "final": self.final.to_dict(content) if self.final else None,
             "final_skipped": self.final_skipped,
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GameState":
+    def from_dict(cls, data: dict[str, Any],
+                  content_from: "GameState | None" = None) -> "GameState":
+        """Odtwarza stan ze słownika.
+
+        content_from: stan, z którego bierzemy treść pytań, gdy słownik
+        jej nie zawiera (migawka zapisana z content=False).
+        """
         final = data.get("final")  # .get – starsze zapisy mogą nie mieć tych pól
+        if content_from is not None:
+            rounds = [RoundState.from_dict(r, source.categories)
+                      for r, source in zip(data["rounds"], content_from.rounds)]
+            final_question = content_from.final.question if content_from.final else None
+        else:
+            rounds = [RoundState.from_dict(r) for r in data["rounds"]]
+            final_question = None
         return cls(
             players=[Player(p["name"], p["score"]) for p in data["players"]],
-            rounds=[RoundState.from_dict(r) for r in data["rounds"]],
+            rounds=rounds,
             round_index=data["round_index"],
             phase=Phase(data["phase"]),
             current=OpenQuestion.from_dict(data["current"]) if data["current"] else None,
             last_correct=data.get("last_correct"),
-            final=FinalState.from_dict(final) if final else None,
+            final=FinalState.from_dict(final, final_question) if final else None,
             final_skipped=data.get("final_skipped", False),
         )

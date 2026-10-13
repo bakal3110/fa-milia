@@ -14,6 +14,8 @@ class FinalEditorPage(LibraryEditorPage):
     COMPLETE_TEXT = "✔ Pytanie kompletne – może zostać wylosowane do finału."
     INCOMPLETE_TEXT = "⚠ Pytanie niekompletne – nie zostanie użyte w finale. Brakuje:"
     DELETE_QUESTION = "Usunąć pytanie finałowe „{title}”?"
+    USED_SUFFIX = "   · użyte"
+    UNMARK_TEXT = "Oznacz jako nieużyte"
 
     def _build_form(self) -> QWidget:
         form = QWidget()
@@ -69,6 +71,12 @@ class FinalEditorPage(LibraryEditorPage):
 
     def _remove(self, item_id: str) -> None:
         self._library.delete_final(item_id)
+
+    def _is_used(self, item_id: str) -> bool:
+        return self._usage.is_final_used(item_id)
+
+    def _unmark_used(self, item_id: str) -> None:
+        self._usage.unmark_final(item_id)
 
     def _create_new_item(self) -> FinalQuestion:
         return FinalQuestion()

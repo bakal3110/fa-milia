@@ -82,6 +82,12 @@ class CategoryEditorPage(LibraryEditorPage):
     def _create_new_item(self) -> Category:
         return Category(name=self._library.unique_category_name("Nowa kategoria"))
 
+    def _is_used(self, item_id: str) -> bool:
+        return self._usage.is_category_used(item_id)
+
+    def _unmark_used(self, item_id: str) -> None:
+        self._usage.unmark_category(item_id)
+
     def _confirm_before_save(self, item: Category) -> bool:
         if item.name and self._library.category_name_taken(item.name, except_id=item.id):
             answer = QMessageBox.question(

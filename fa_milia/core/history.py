@@ -1,8 +1,8 @@
 """Historia akcji i cofanie.
 
-Przed każdą akcją zapamiętujemy „migawkę” całego stanu gry (słownik z
-GameState.to_dict()). Cofnięcie to po prostu przywrócenie ostatniej migawki.
-Stan gry jest mały (kilka KB), więc to proste rozwiązanie jest w pełni wystarczające.
+Przed każdą akcją zapamiętujemy „migawkę” stanu gry (słownik z
+GameState.to_dict(content=False) – bez treści pytań, która się nie zmienia).
+Cofnięcie to po prostu przywrócenie ostatniej migawki.
 """
 
 from collections.abc import Callable
@@ -17,7 +17,7 @@ MAX_HISTORY = 1000
 @dataclass
 class HistoryEntry:
     label: str  # opis akcji, np. „Ania +300”
-    snapshot: dict[str, Any]  # stan sprzed akcji
+    snapshot: dict[str, Any]  # stan sprzed akcji (bez treści pytań)
 
 
 class GameHistory:
@@ -32,11 +32,11 @@ class GameHistory:
         history.apply("Ania +300", lambda state: state.mark(0, True)).
         Jeśli akcja zgłosi błąd, stan zostaje przywrócony, a błąd przekazany dalej.
         """
-        before = self.state.to_dict()
+        before = self.state.to_dict(content=False)
         try:
             result = action(self.state)
         except Exception:
-            self.state = GameState.from_dict(before)
+            self.state = GameState.from_dict(before, content_from=self.state)
             raise
         self.entries.append(HistoryEntry(label, before))
         if len(self.entries) > MAX_HISTORY:
@@ -54,7 +54,7 @@ class GameHistory:
         if not self.entries:
             return None
         entry = self.entries.pop()
-        self.state = GameState.from_dict(entry.snapshot)
+        self.state = GameState.from_dict(entry.snapshot, content_from=self.state)
         return entry.label
 
     def to_dict(self) -> dict[str, Any]:

@@ -88,10 +88,63 @@ domyślne – możesz je podmienić własnymi plikami .wav, .ogg lub .mp3 o nazw
 Brak pliku nie jest błędem – program po prostu nie zagra dźwięku. Szczegóły są w pliku
 `INSTRUKCJA.txt` w tym folderze.
 
+## Zapis gry, pamięć wykorzystania, zestawy
+
+- **Zapis gry:** gra zapisuje się automatycznie po każdej akcji. Po zamknięciu programu
+  (także przypadkowym) dokończysz ją przez „Kontynuuj grę” – razem z możliwością cofania.
+- **Pamięć wykorzystania:** kategoria jest „użyta” od rozpoczęcia gry, w której wystąpiła,
+  a pytanie finałowe – od chwili wyświetlenia. Użyte kategorie są wyszarzone przy wyborze,
+  a „Losuj” i losowanie finału biorą najpierw nieużyte. Reset: Ustawienia → Pamięć gier;
+  pojedynczy element odznaczysz w edytorze.
+- **Zestawy:** zapisany wybór 6 + 6 kategorii i pytania finałowego („Zapisz jako zestaw…”
+  przy wyborze kategorii albo menu → Zestawy).
+
+## Format plików do importu (dla rodziny)
+
+Pytania można przygotować w zwykłym Notatniku. Najprościej: Import / Eksport →
+„Utwórz pusty szablon…” – powstanie folder z plikiem `WZOR.txt` i instrukcją
+`JAK_DODAC_PYTANIA.txt`. Przykład gotowego folderu: `examples/przyklad_importu/`.
+
+Jeden plik `.txt` = jedna kategoria:
+
+```
+KATEGORIA: Zwierzęta
+
+1
+P: Ile nóg ma pająk?
+O: Osiem
+
+2
+P: Jak nazywa się to zwierzę?
+O: Kapibara
+```
+
+- Numery 1–5 to rzędy (1 = najłatwiejsze); zamiast nich można pisać 100–500.
+- Zamiast `P:` można pisać `Pytanie:`, zamiast `O:` – `Odpowiedź:`/`Odpowiedz:`.
+  Wielkość liter i polskie znaki w tych słowach nie mają znaczenia.
+- Puste linie i linie zaczynające się od `#` są pomijane. Odpowiedź może mieć kilka linii.
+- Kodowanie UTF-8 albo Windows-1250 (stary Notatnik) – rozpoznawane automatycznie.
+- Zdjęcia i dźwięki w tym samym folderze: `<nazwa pliku txt>_<numer>.<rozszerzenie>`,
+  np. `zwierzeta_2.jpg`, `zwierzeta_3.mp3` (obrazy .jpg/.jpeg/.png, dźwięki .mp3/.wav/.ogg).
+  Tekst po `P:` staje się wtedy podpisem (może być pusty).
+- Pytania finałowe: plik `final.txt` (albo `finał.txt`) z blokami `1`, `KATEGORIA:`, `P:`, `O:`;
+  media `final_1.jpg` itd.
+
+Import (folder albo `.zip`) pokazuje podgląd: co zostanie dodane, co jest niekompletne
+i jakie są błędy (np. „zwierzeta.txt, pytanie 4: brak odpowiedzi”). Przy powtórzonej nazwie
+można pominąć, zastąpić albo zapisać kopię. Eksport tworzy folder w tym samym formacie.
+
+## Kopia zapasowa
+
+Import / Eksport → „Utwórz kopię zapasową…” zapisuje wszystkie dane programu w jednym
+pliku `.zip`. „Przywróć z kopii…” zastępuje obecne dane zawartością kopii; dotychczasowe
+dane są odkładane do katalogu `~/.local/share/fa-milia-przed-przywroceniem/`.
+
 ## Struktura projektu
 
 - `fa_milia/core/` – logika i dane (bez Qt)
 - `fa_milia/ui/` – interfejs (PySide6)
 - `fa_milia/resources/` – ikona i przykładowe media
 - `tests/` – testy logiki (pytest)
-- `tools/generate_sample_media.py` – generator przykładowych flag i dźwięków
+- `examples/przyklad_importu/` – przykładowy folder do przetestowania importu
+- `tools/generate_sample_media.py` – generator przykładowych flag, obrazków i dźwięków

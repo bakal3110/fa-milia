@@ -1,79 +1,57 @@
-"""Nowa gra, krok 2: wybór 6 kategorii do rundy 1 i 6 do rundy 2."""
+"""Nowa gra, krok 2: wybór 6 kategorii do rundy 1 i 6 do rundy 2 oraz finału."""
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from fa_milia.config import CATEGORIES_PER_ROUND
 from fa_milia.core.library import Library
-from fa_milia.core.models import Category
-from fa_milia.core.selection import ROUND_NUMBERS, CategorySelection, SelectionError
+from fa_milia.core.sets import SetStore
+from fa_milia.core.usage import UsageMemory
+from fa_milia.ui.setup.category_picker import CategoryPicker
 from fa_milia.ui.setup.players_page import page_title
-
-NAME_COLUMN = 0
-ID_ROLE = Qt.ItemDataRole.UserRole
+from fa_milia.ui.setup.set_dialogs import choose_set, save_set
 
 
 class CategorySelectPage(QWidget):
     back_requested = Signal()
-    start_requested = Signal(list, list, bool)  # kategorie rundy 1 i 2, czy z finałem
+    # kategorie rundy 1 i 2, czy z finałem, id pytania finałowego z zestawu ("" = losowe)
+    start_requested = Signal(list, list, bool, str)
 
-    def __init__(self, library: Library, parent: QWidget | None = None) -> None:
+    def __init__(self, library: Library, usage: UsageMemory, sets: SetStore,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._library = library
-        self._selection = CategorySelection()
-        self._categories: list[Category] = []
+        self._usage = usage
+        self._sets = sets
+        self._set_final_id: str | None = None  # finał z wczytanego zestawu
+        self._set_name = ""
 
-        self._counter = QLabel()
-        self._counter.setStyleSheet("font-weight: bold;")
-        random_button = QPushButton("Losuj")
-        random_button.setToolTip("Uzupełnia brakujące miejsca losowymi kategoriami")
-        random_button.clicked.connect(self._fill_randomly)
-        clear_button = QPushButton("Wyczyść")
-        clear_button.clicked.connect(self._clear)
+        self._picker = CategoryPicker()
+        self._picker.changed.connect(self._update_start_button)
         load_set_button = QPushButton("Wczytaj zestaw…")
-        load_set_button.setEnabled(False)
-        load_set_button.setToolTip("Dostępne od etapu E5")
+        load_set_button.clicked.connect(self._load_set)
+        save_set_button = QPushButton("Zapisz jako zestaw…")
+        save_set_button.clicked.connect(self._save_set)
+        self._picker.add_tool(save_set_button)
+        self._picker.add_tool(load_set_button)
+
         self._final_check = QCheckBox("Finał")
         self._final_check.setChecked(True)
-        tools = QHBoxLayout()
-        tools.addWidget(self._counter)
-        tools.addStretch()
-        tools.addWidget(self._final_check)
-        tools.addWidget(load_set_button)
-        tools.addWidget(clear_button)
-        tools.addWidget(random_button)
+        self._final_check.toggled.connect(self._update_final_label)
+        self._final_label = QLabel()
+        final_row = QHBoxLayout()
+        final_row.addWidget(self._final_check)
+        final_row.addWidget(self._final_label, stretch=1)
 
-        # Tabela: nazwa kategorii + dwa pola wyboru (runda 1, runda 2).
-        self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(["Kategoria", "Runda 1", "Runda 2"])
-        header = self._table.horizontalHeader()
-        header.setSectionResizeMode(NAME_COLUMN, QHeaderView.ResizeMode.Stretch)
-        for column in ROUND_NUMBERS:
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
-        self._table.verticalHeader().setVisible(False)
-        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self._table.itemChanged.connect(self._on_item_changed)
-
-        self._order = QLabel()
-        self._order.setWordWrap(True)
         self._info = QLabel()
         self._info.setStyleSheet("color: gray;")
         self._info.setWordWrap(True)
-        self._message = QLabel()
-        self._message.setStyleSheet("color: #b03030;")
-        self._message.setWordWrap(True)
 
         back_button = QPushButton("← Wstecz")
         back_button.clicked.connect(self.back_requested)
@@ -86,117 +64,92 @@ class CategorySelectPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(page_title("Nowa gra – wybór kategorii"))
-        layout.addLayout(tools)
-        layout.addWidget(self._table, stretch=1)
-        layout.addWidget(self._order)
+        layout.addWidget(self._picker, stretch=1)
+        layout.addLayout(final_row)
         layout.addWidget(self._info)
-        layout.addWidget(self._message)
         layout.addLayout(buttons)
 
     # --- Wejście na stronę -------------------------------------------------
 
     def prepare(self) -> None:
         """Wczytuje aktualną listę kompletnych kategorii (wybór z poprzedniej gry zostaje)."""
-        self._categories = self._library.complete_categories()
-        self._selection.keep_only({c.id for c in self._categories})
-        self._message.setText("")
+        categories = self._library.complete_categories()
+        self._picker.set_categories(categories, self._usage.used_category_ids())
 
-        self._table.blockSignals(True)  # wypełnianie tabeli to nie zmiana wyboru
-        self._table.setRowCount(len(self._categories))
-        for row, category in enumerate(self._categories):
-            name_item = QTableWidgetItem(category.name)
-            name_item.setData(ID_ROLE, category.id)
-            self._table.setItem(row, NAME_COLUMN, name_item)
-            for column in ROUND_NUMBERS:
-                check_item = QTableWidgetItem()
-                check_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-                self._table.setItem(row, column, check_item)
-        self._table.blockSignals(False)
-
+        if self._set_final_id and self._set_final_id not in self._library.finals:
+            self._set_final_id = None
         has_finals = bool(self._library.complete_finals())
         self._final_check.setEnabled(has_finals)
-        if has_finals:
-            self._final_check.setToolTip("Pytanie finałowe zostanie wylosowane "
-                                         "spośród kompletnych pytań finałowych")
-        else:
+        if not has_finals:
             self._final_check.setChecked(False)
-            self._final_check.setToolTip("Brak kompletnych pytań finałowych – "
-                                         "dodaj je w edytorze pytań finałowych")
+        self._update_final_label()
 
-        incomplete = len(self._library.categories) - len(self._categories)
+        incomplete = len(self._library.categories) - len(categories)
         if incomplete:
             self._info.setText(f"Niekompletne kategorie ({incomplete}) nie są tu pokazane – "
                                "uzupełnij je w edytorze kategorii.")
         else:
             self._info.setText("")
-        self._sync()
+        self._update_start_button()
 
     def request_back(self) -> None:
         self.back_requested.emit()
 
-    # --- Zmiany wyboru -----------------------------------------------------
+    # --- Finał i zestawy -----------------------------------------------------
 
-    def _on_item_changed(self, item: QTableWidgetItem) -> None:
-        round_number = item.column()
-        if round_number not in ROUND_NUMBERS:
+    def _update_final_label(self) -> None:
+        if not self._final_check.isEnabled():
+            text = "brak kompletnych pytań finałowych – dodaj je w edytorze pytań finałowych"
+        elif not self._final_check.isChecked():
+            text = "gra bez finału"
+        elif self._set_final_id:
+            final = self._library.finals[self._set_final_id]
+            text = f"pytanie z zestawu „{self._set_name}”: {final.category}"
+        else:
+            unused = [f for f in self._library.complete_finals()
+                      if not self._usage.is_final_used(f.id)]
+            text = (f"pytanie zostanie wylosowane spośród nieużytych ({len(unused)})" if unused
+                    else "wszystkie pytania finałowe były już użyte – zostanie wylosowane "
+                         "jedno z nich")
+        self._final_label.setText(text)
+
+    def _load_set(self) -> None:
+        game_set = choose_set(self, self._sets, self._library)
+        if game_set is None:
             return
-        category_id = self._table.item(item.row(), NAME_COLUMN).data(ID_ROLE)
-        checked = item.checkState() == Qt.CheckState.Checked
-        current = self._selection.round_of(category_id)
-        if checked:
-            target = round_number
-        else:
-            target = None if current == round_number else current
-        self._message.setText("")
-        try:
-            self._selection.set_round(category_id, target)
-        except SelectionError as error:
-            self._message.setText(str(error))
-        self._sync()
+        messages = self._picker.set_selection(game_set.round1, game_set.round2)
+        self._set_name = game_set.name
+        self._set_final_id = game_set.final if game_set.final in self._library.finals else None
+        if game_set.final and self._set_final_id is None:
+            messages.append("Pytanie finałowe z zestawu zostało usunięte – będzie losowane.")
+        if self._set_final_id:
+            self._final_check.setChecked(True)
+        self._picker.show_message(" ".join(messages) or f"Wczytano zestaw „{game_set.name}”.")
+        self._update_final_label()
 
-    def _fill_randomly(self) -> None:
-        self._selection.fill_randomly([c.id for c in self._categories], used_ids=set())
-        if self._selection.is_complete():
-            self._message.setText("")
-        else:
-            needed = CATEGORIES_PER_ROUND * len(ROUND_NUMBERS)
-            self._message.setText(f"Za mało kompletnych kategorii: jest {len(self._categories)}, "
-                                  f"potrzeba {needed}. Dodaj kategorie w edytorze.")
-        self._sync()
+    def _save_set(self) -> None:
+        round1, round2 = self._picker.rounds()
+        if not self._picker.is_complete():
+            self._picker.show_message("Zestaw musi mieć komplet 6 + 6 kategorii.")
+            return
+        game_set = save_set(self, self._sets, self._library, round1, round2,
+                            self._set_final_id, self._set_name)
+        if game_set is not None:
+            self._set_name = game_set.name
+            self._set_final_id = game_set.final
+            self._picker.show_message(f"Zapisano zestaw „{game_set.name}”.")
+            self._update_final_label()
 
-    def _clear(self) -> None:
-        self._selection.clear()
-        self._message.setText("")
-        self._sync()
+    # --- Start -----------------------------------------------------------------
 
-    def _sync(self) -> None:
-        """Ustawia pola wyboru, liczniki i przycisk startu zgodnie ze stanem wyboru."""
-        names = {c.id: c.name for c in self._categories}
-        self._table.blockSignals(True)
-        for row in range(self._table.rowCount()):
-            category_id = self._table.item(row, NAME_COLUMN).data(ID_ROLE)
-            chosen = self._selection.round_of(category_id)
-            for column in ROUND_NUMBERS:
-                state = Qt.CheckState.Checked if chosen == column else Qt.CheckState.Unchecked
-                self._table.item(row, column).setCheckState(state)
-        self._table.blockSignals(False)
-
-        self._counter.setText("   ".join(
-            f"Runda {n}: {self._selection.count(n)} / {CATEGORIES_PER_ROUND}"
-            for n in ROUND_NUMBERS
-        ))
-        order_lines = []
-        for number in ROUND_NUMBERS:
-            chosen_names = [names[i] for i in self._selection.rounds[number]]
-            order_lines.append(f"<b>Plansza rundy {number}:</b> " + (", ".join(chosen_names) or "—"))
-        self._order.setText("<br>".join(order_lines))
-        self._start_button.setEnabled(self._selection.is_complete())
+    def _update_start_button(self) -> None:
+        self._start_button.setEnabled(self._picker.is_complete())
 
     def _start(self) -> None:
-        if not self._selection.is_complete():
+        if not self._picker.is_complete():
             return
-        by_id = {c.id: c for c in self._categories}
-        round1 = [by_id[i] for i in self._selection.rounds[1]]
-        round2 = [by_id[i] for i in self._selection.rounds[2]]
+        by_id = {c.id: c for c in self._library.complete_categories()}
+        round1_ids, round2_ids = self._picker.rounds()
         with_final = self._final_check.isEnabled() and self._final_check.isChecked()
-        self.start_requested.emit(round1, round2, with_final)
+        self.start_requested.emit([by_id[i] for i in round1_ids], [by_id[i] for i in round2_ids],
+                                  with_final, self._set_final_id or "")

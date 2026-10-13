@@ -19,6 +19,7 @@ from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPolygonF
 RESOURCES = Path(__file__).resolve().parent.parent / "fa_milia" / "resources"
 OUTPUT = RESOURCES / "sample_media"
 SOUNDS_OUTPUT = RESOURCES / "default_sounds"
+EXAMPLE_OUTPUT = RESOURCES.parent.parent / "examples" / "przyklad_importu"
 
 # ---------------------------------------------------------------------------
 # Flagi
@@ -74,6 +75,19 @@ def flag_czechia() -> QImage:
     p.fillRect(0, 300, 900, 300, QColor("#D7141A"))
     p.setBrush(QColor("#11457E"))
     p.drawPolygon(QPolygonF([QPointF(0, 0), QPointF(450, 300), QPointF(0, 600)]))
+    p.end()
+    return image
+
+
+def shapes_example() -> QImage:
+    """Obrazek do przykładowego importu: czerwone koło, niebieski kwadrat, żółty trójkąt."""
+    image, p = _new_image(900, 600)
+    p.setBrush(QColor("#d62828"))
+    p.drawEllipse(QPointF(170, 300), 120, 120)
+    p.setBrush(QColor("#1d4ed8"))
+    p.drawRect(QRectF(340, 180, 240, 240))
+    p.setBrush(QColor("#f4c430"))
+    p.drawPolygon(QPolygonF([QPointF(760, 170), QPointF(880, 430), QPointF(640, 430)]))
     p.end()
     return image
 
@@ -222,6 +236,9 @@ def main() -> None:
     save_wav(OUTPUT / "dzwiek_wlazl_kotek.wav", melody(WLAZL_KOTEK, beat=0.38))
     save_wav(OUTPUT / "dzwiek_panie_janie.wav", melody(PANIE_JANIE, beat=0.38))
     save_wav(OUTPUT / "dzwiek_siedem_sygnalow.wav", beeps(7, 0.12, 0.13))
+    EXAMPLE_OUTPUT.mkdir(parents=True, exist_ok=True)
+    shapes_example().save(str(EXAMPLE_OUTPUT / "kolory_2.png"))
+
     SOUNDS_OUTPUT.mkdir(parents=True, exist_ok=True)
     for name, samples in default_sounds().items():
         save_wav(SOUNDS_OUTPUT / f"{name}.wav", samples)

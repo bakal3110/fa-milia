@@ -9,8 +9,10 @@ from fa_milia.config import APP_ID, APP_NAME
 from fa_milia.core.library import Library
 from fa_milia.core.paths import DataDir, default_data_root
 from fa_milia.core.sample_data import install_if_first_run
+from fa_milia.core.sets import SetStore
 from fa_milia.core.settings import load_settings
 from fa_milia.core.sounds import prepare_sounds_folder
+from fa_milia.core.usage import UsageMemory
 from fa_milia.resource_paths import resource_path
 from fa_milia.ui.main_window import MainWindow
 
@@ -33,7 +35,9 @@ def main() -> int:
         pass  # brak dźwięków nie może zatrzymać programu
 
     settings = load_settings(data_dir.settings_file)
-    window = MainWindow(library, settings)
+    usage = UsageMemory(data_dir.usage_file)
+    sets = SetStore(data_dir.sets_file)
+    window = MainWindow(library, settings, usage, sets)
     if settings.fullscreen:
         window.showFullScreen()
     else:

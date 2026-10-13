@@ -156,7 +156,19 @@ class Library:
             used.update(category.media_files())
         for final in self.finals.values():
             used.update(final.media_files())
+        # Zapisana (niedokończona) gra ma własne kopie pytań – ich plików też nie ruszamy,
+        # nawet jeśli kategorię usunięto z biblioteki.
+        used.update(self._savegame_media())
         return used
+
+    def _savegame_media(self) -> set[str]:
+        try:
+            data = read_json(self.data_dir.savegame_file)
+        except (OSError, json.JSONDecodeError):
+            return set()
+        found: set[str] = set()
+        _collect_media_names(data, found)
+        return found
 
     def remove_unused_media(self) -> int:
         """Usuwa pliki mediów, do których nie odwołuje się żadne pytanie.
@@ -181,6 +193,19 @@ class Library:
         if question.media and not self.media_path(question.media).is_file():
             return [f"plik {self.display_media_name(question.media)} nie istnieje"]
         return []
+
+
+def _collect_media_names(data, found: set[str]) -> None:
+    """Przeszukuje (rekurencyjnie) dane JSON i zbiera wartości kluczy "media"."""
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key == "media" and isinstance(value, str):
+                found.add(value)
+            else:
+                _collect_media_names(value, found)
+    elif isinstance(data, list):
+        for value in data:
+            _collect_media_names(value, found)
 
 
 def _safe_file_stem(stem: str) -> str:

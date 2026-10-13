@@ -1,0 +1,6 @@
+# Przykładowe pytanie finałowe.
+
+1
+KATEGORIA: Sztuka
+P: Kto namalował obraz „Bitwa pod Grunwaldem”?
+O: Jan Matejko

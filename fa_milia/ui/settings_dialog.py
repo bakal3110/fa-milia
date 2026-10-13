@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSlider,
     QSpinBox,
@@ -32,6 +33,7 @@ from fa_milia.core.game_state import RoundState
 from fa_milia.core.models import Category
 from fa_milia.core.settings import MAX_SCALE, MIN_SCALE, Settings
 from fa_milia.core.sounds import SOUND_EVENTS, find_sound
+from fa_milia.core.usage import UsageMemory
 from fa_milia.ui.game.board_widget import BoardWidget
 from fa_milia.ui.game.host_panel import PlayerRow, host_style
 from fa_milia.ui.screens import describe_screen
@@ -51,9 +53,10 @@ def _scale_slider() -> QSlider:
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: Settings, sounds_dir: Path,
+    def __init__(self, settings: Settings, sounds_dir: Path, usage: UsageMemory,
                  parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._usage = usage
         self._sounds_dir = sounds_dir
         self._effects = SoundEffects(sounds_dir, self)
         self.setWindowTitle("Ustawienia")
@@ -65,6 +68,7 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_screens_tab(), "Ekrany")
         tabs.addTab(self._build_scaling_tab(), "Skalowanie")
         tabs.addTab(self._build_timer_sound_tab(), "Timer i dźwięk")
+        tabs.addTab(self._build_memory_tab(), "Pamięć gier")
         tabs.addTab(self._build_shortcuts_tab(), "Skróty klawiszowe")
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save
@@ -290,6 +294,41 @@ class SettingsDialog(QDialog):
             mark = f"✔ {path.name}" if path else "– brak pliku (cisza)"
             lines.append(f"<b>{name}</b> – {description}: {mark}")
         self._sound_status.setText("<br>".join(lines))
+
+    # --- Zakładka „Pamięć gier” ---------------------------------------------
+
+    def _build_memory_tab(self) -> QWidget:
+        info = QLabel("Program pamięta, które kategorie i pytania finałowe były już w grze. "
+                      "„Losuj” i losowanie finału wybierają najpierw nieużyte, a na liście "
+                      "wyboru użyte kategorie są wyszarzone. Pojedynczy element odznaczysz "
+                      "w edytorze („Oznacz jako nieużytą”).")
+        info.setWordWrap(True)
+        self._memory_status = QLabel()
+        reset = QPushButton("Resetuj pamięć…")
+        reset.clicked.connect(self._reset_memory)
+        self._update_memory_status()
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(info)
+        layout.addWidget(self._memory_status)
+        layout.addWidget(reset, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addStretch()
+        return tab
+
+    def _update_memory_status(self) -> None:
+        self._memory_status.setText(
+            f"Użyte kategorie: <b>{len(self._usage.categories)}</b>, "
+            f"użyte pytania finałowe: <b>{len(self._usage.finals)}</b>")
+
+    def _reset_memory(self) -> None:
+        answer = QMessageBox.question(
+            self, "Resetuj pamięć",
+            "Wszystkie kategorie i pytania finałowe zostaną oznaczone jako nieużyte.\n"
+            "Tej operacji nie można cofnąć. Kontynuować?")
+        if answer == QMessageBox.StandardButton.Yes:
+            self._usage.reset()
+            self._update_memory_status()
 
     # --- Zakładka „Skróty klawiszowe” --------------------------------------
 

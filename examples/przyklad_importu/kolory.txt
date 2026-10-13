@@ -1,0 +1,27 @@
+# Przykładowa kategoria do przetestowania importu w programie Fa milia.
+# Linie z # na początku są pomijane.
+
+KATEGORIA: Kolory i kształty
+
+1
+P: Jaki kolor powstanie ze zmieszania żółtego i niebieskiego?
+O: Zielony
+
+# Do pytania 2 jest obrazek: kolory_2.png
+2
+P: Jakiego koloru jest koło na obrazku?
+O: Czerwonego
+
+# Zamiast numeru 3 można wpisać wartość pola (300).
+300
+Pytanie: Ile kolorów ma tęcza?
+Odpowiedź: Siedem
+
+4
+p: Jaki kolor powstanie ze zmieszania czerwonego i białego?
+odpowiedz: Różowy
+
+5
+P: Wymień trzy barwy podstawowe (w malarstwie).
+O: Czerwony, żółty
+i niebieski
