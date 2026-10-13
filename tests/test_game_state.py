@@ -6,10 +6,13 @@ from fa_milia.core.history import GameHistory
 from tests.test_models import complete_category
 
 
-def make_game(players=("Ania", "Bartek", "Celina")) -> GameState:
+def make_game(players=("Ania", "Bartek", "Celina"), bonus_tiles=([], []),
+              final=None) -> GameState:
+    """Gra testowa. Domyślnie bez bonusów, żeby wynik testu był przewidywalny."""
     round1 = [complete_category(f"R1 K{i}") for i in range(6)]
     round2 = [complete_category(f"R2 K{i}") for i in range(6)]
-    return GameState.new(list(players), round1, round2)
+    return GameState.new(list(players), round1, round2, final_question=final,
+                         bonus_tiles=[list(bonus_tiles[0]), list(bonus_tiles[1])])
 
 
 def play_tile(game: GameState, column: int, row: int) -> None:

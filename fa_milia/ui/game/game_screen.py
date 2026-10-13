@@ -1,17 +1,18 @@
-"""Ekran gry – to, co widzą zawodnicy (później: telewizor/rzutnik).
+"""Ekran gry – to, co widzą zawodnicy (telewizor/rzutnik).
 
-Ten ekran NIGDY nie pokazuje odpowiedzi przed jej odsłonięciem.
-Wszystkie informacje tylko dla prowadzącego trafiają do HostControls.
+Ten ekran NIGDY nie pokazuje odpowiedzi przed jej odsłonięciem ani położenia
+bonusów. Wszystkie informacje tylko dla prowadzącego trafiają do HostPanel.
 """
 
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QGridLayout,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -20,7 +21,8 @@ from PySide6.QtWidgets import (
 from fa_milia.core.game_state import GameState, Phase
 from fa_milia.core.models import ContentKind, Question
 from fa_milia.ui.game.board_widget import BoardWidget
-from fa_milia.ui.game.widgets import FitTextLabel, ScaledImage, format_points
+from fa_milia.ui.game.timer import format_seconds
+from fa_milia.ui.game.widgets import FitTextLabel, ScaledImage, draw_fitted_text, format_points
 from fa_milia.ui.style import GOLD, NAVY
 
 SCREEN_STYLE = f"""
@@ -37,6 +39,8 @@ SCREEN_STYLE = f"""
     font-weight: bold;
 }}
 """
+
+TIMER_WARNING_SECONDS = 5  # ostatnie sekundy – pasek robi się czerwony
 
 
 class ClickableView(QWidget):
@@ -56,6 +60,45 @@ class ClickableView(QWidget):
             self.clicked.emit()
 
 
+class TimerBar(QWidget):
+    """Pasek odliczania: kurczy się z upływem czasu, obok pozostałe sekundy."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._remaining: float | None = None  # None = timer nieaktywny (nic nie rysujemy)
+        self._total = 1.0
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+
+    def set_time(self, remaining: float | None, total: float) -> None:
+        self._remaining = remaining
+        self._total = max(total, 0.1)
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        if self._remaining is None:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        height = self.height()
+        text_width = height * 2.6
+        bar = QRectF(0, height * 0.3, self.width() - text_width - 10, height * 0.4)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#22357a"))
+        painter.drawRoundedRect(bar, bar.height() / 2, bar.height() / 2)
+
+        warning = self._remaining <= TIMER_WARNING_SECONDS
+        color = QColor("#e5484d") if warning else QColor(GOLD)
+        filled = QRectF(bar)
+        filled.setWidth(bar.width() * self._remaining / self._total)
+        painter.setBrush(color)
+        if filled.width() > 0:
+            painter.drawRoundedRect(filled, bar.height() / 2, bar.height() / 2)
+
+        text = format_seconds(self._remaining) if self._remaining > 0 else "Czas!"
+        text_rect = QRectF(self.width() - text_width, 0, text_width, height)
+        draw_fitted_text(painter, text_rect, text, color, int(height * 0.9))
+
+
 class QuestionView(ClickableView):
     """Pytanie (tekst, obraz lub dźwięk), opcjonalny podpis i – po odsłonięciu – odpowiedź."""
 
@@ -64,6 +107,7 @@ class QuestionView(ClickableView):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._header = FitTextLabel("#9fb4f0", max_ratio=0.6)
+        self._timer = TimerBar()
 
         self._text = FitTextLabel("#ffffff", max_ratio=0.16, shadow=True)
         self._image = ScaledImage()
@@ -88,14 +132,15 @@ class QuestionView(ClickableView):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 20, 40, 30)
         # stretch = proporcje wysokości poszczególnych części ekranu
-        layout.addWidget(self._header, stretch=1)
-        layout.addWidget(self._content, stretch=8)
-        layout.addWidget(self._caption, stretch=2)
-        layout.addWidget(self._answer, stretch=3)
+        layout.addWidget(self._header, stretch=2)
+        layout.addWidget(self._timer, stretch=1)
+        layout.addWidget(self._content, stretch=15)
+        layout.addWidget(self._caption, stretch=4)
+        layout.addWidget(self._answer, stretch=6)
 
-    def show_question(self, category: str, value: int, question: Question,
-                      media_path: Path | None, revealed: bool) -> None:
-        self._header.set_text(f"{category.upper()}  ·  {format_points(value)}")
+    def show_question(self, header: str, question: Question, media_path: Path | None,
+                      revealed: bool) -> None:
+        self._header.set_text(header)
         if question.kind == ContentKind.TEXT:
             self._text.set_text(question.text)
             self._content.setCurrentWidget(self._text)
@@ -111,6 +156,31 @@ class QuestionView(ClickableView):
         # Odpowiedź pojawia się dopiero po odsłonięciu. Miejsce jest zarezerwowane
         # od początku, więc nic na ekranie nie „skacze”.
         self._answer.set_text(question.answer if revealed else "")
+
+    def set_timer(self, remaining: float | None, total: float) -> None:
+        self._timer.set_time(remaining, total)
+
+
+class SplashView(ClickableView):
+    """Duży napis z dwoma liniami pod spodem – ekran BONUS i ekran kategorii finału."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._title = FitTextLabel(GOLD, max_ratio=0.75, shadow=True)
+        self._subtitle = FitTextLabel("#ffffff", max_ratio=0.6, shadow=True)
+        self._detail = FitTextLabel("#9fb4f0", max_ratio=0.5)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(60, 40, 60, 40)
+        layout.addStretch(1)
+        layout.addWidget(self._title, stretch=5)
+        layout.addWidget(self._subtitle, stretch=2)
+        layout.addWidget(self._detail, stretch=2)
+        layout.addStretch(1)
+
+    def show_splash(self, title: str, subtitle: str, detail: str) -> None:
+        self._title.set_text(title)
+        self._subtitle.set_text(subtitle)
+        self._detail.set_text(detail)
 
 
 class ScoresView(ClickableView):
@@ -159,10 +229,8 @@ class ScoresView(ClickableView):
             self._rows.addWidget(name_label, line, 1)
             self._rows.addWidget(score_label, line, 2)
         # Przy małej liczbie graczy wiersze nie powinny być gigantyczne:
-        # dokładamy puste miejsce do co najmniej 6 wierszy.
-        for line in range(len(ranking), 6):
-            self._rows.setRowStretch(line, 1)
-        for line in range(len(ranking)):
+        # każdy wiersz (także pusty, do co najmniej 6) dostaje tę samą wysokość.
+        for line in range(max(6, len(ranking))):
             self._rows.setRowStretch(line, 1)
 
 
@@ -178,10 +246,10 @@ def winner_title(state: GameState) -> str:
 
 
 class GameScreen(QWidget):
-    """Przełącza widoki (plansza / pytanie / wyniki) zależnie od stanu gry."""
+    """Przełącza widoki (plansza / pytanie / ekrany specjalne / wyniki) zależnie od stanu."""
 
     tile_clicked = Signal(int, int)
-    advance_requested = Signal()  # kliknięcie w pytanie lub tabelę wyników
+    advance_requested = Signal()  # kliknięcie w pytanie, ekran BONUS lub tabelę wyników
     replay_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -192,9 +260,10 @@ class GameScreen(QWidget):
 
         self._board = BoardWidget()
         self._question = QuestionView()
+        self._splash = SplashView()
         self._scores = ScoresView()
         self._stack = QStackedWidget()
-        for view in (self._board, self._question, self._scores):
+        for view in (self._board, self._question, self._splash, self._scores):
             self._stack.addWidget(view)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -203,15 +272,21 @@ class GameScreen(QWidget):
         self._board.tile_clicked.connect(self.tile_clicked)
         self._question.clicked.connect(self.advance_requested)
         self._question.replay_requested.connect(self.replay_requested)
+        self._splash.clicked.connect(self.advance_requested)
         self._scores.clicked.connect(self.advance_requested)
 
     def set_text_scale(self, scale: float) -> None:
         """Skalowanie tekstu z ustawień (1.0 = 100%)."""
         self._board.set_scale(scale)
         self._scores.set_scale(scale)
-        # findChildren znajduje wszystkie widżety danego typu wewnątrz widoku pytania.
-        for label in self._question.findChildren(FitTextLabel):
-            label.set_scale(scale)
+        # findChildren znajduje wszystkie widżety danego typu wewnątrz widoku.
+        for view in (self._question, self._splash):
+            for label in view.findChildren(FitTextLabel):
+                label.set_scale(scale)
+
+    def set_timer(self, remaining: float | None, total: float) -> None:
+        """remaining=None ukrywa pasek timera."""
+        self._question.set_timer(remaining, total)
 
     def show_state(self, state: GameState, media_path: Callable[[str], Path],
                    show_scores: bool = False) -> None:
@@ -220,30 +295,69 @@ class GameScreen(QWidget):
         media_path to funkcja zamieniająca nazwę pliku mediów na pełną ścieżkę.
         show_scores=True: prowadzący poprosił o tabelę wyników (zamiast planszy/pytania).
         """
-        if show_scores and state.phase in (Phase.BOARD, Phase.QUESTION):
-            self._scores.show_scores(f"Wyniki – runda {state.round.number}", _ranking_rows(state),
+        if show_scores and state.phase not in (Phase.ROUND_END, Phase.FINISHED):
+            self._scores.show_scores("Wyniki", _ranking_rows(state),
                                      "Kliknij lub naciśnij spację, aby wrócić do gry")
             self._stack.setCurrentWidget(self._scores)
             return
+
         match state.phase:
             case Phase.BOARD:
                 self._board.set_round(state.round)
                 self._stack.setCurrentWidget(self._board)
-            case Phase.QUESTION:
-                question = state.current_question()
-                path = media_path(question.media) if question.media else None
-                self._question.show_question(state.current_category().name, state.current.value,
-                                             question, path, state.current.revealed)
-                self._stack.setCurrentWidget(self._question)
-            case Phase.ROUND_END:
-                if state.is_last_round():
-                    hint = "Kliknij lub naciśnij spację, aby zobaczyć wyniki końcowe"
+
+            case Phase.BONUS:
+                current = state.current
+                if current.bonus_player is None:
+                    detail = ""
                 else:
+                    name = state.players[current.bonus_player].name
+                    detail = f"{name} gra o {format_points(current.value)}"
+                self._splash.show_splash("BONUS", state.current_category().name.upper(), detail)
+                self._stack.setCurrentWidget(self._splash)
+
+            case Phase.QUESTION:
+                current = state.current
+                question = state.current_question()
+                category = state.current_category().name.upper()
+                if current.is_bonus:
+                    player = state.players[current.bonus_player].name
+                    header = f"BONUS · {category} · {player} gra o {format_points(current.value)}"
+                else:
+                    header = f"{category}  ·  {format_points(current.value)}"
+                self._show_question(header, question, media_path, current.revealed)
+
+            case Phase.ROUND_END:
+                if not state.is_last_round():
                     hint = f"Kliknij lub naciśnij spację, aby rozpocząć rundę {state.round.number + 1}"
+                elif state.final is not None:
+                    hint = "Kliknij lub naciśnij spację, aby przejść do finału"
+                else:
+                    hint = "Kliknij lub naciśnij spację, aby zobaczyć wyniki końcowe"
                 self._scores.show_scores(f"Koniec rundy {state.round.number}",
                                          _ranking_rows(state), hint)
                 self._stack.setCurrentWidget(self._scores)
+
+            case Phase.FINAL_WAGERS:
+                self._splash.show_splash("FINAŁ", state.final.question.category.upper(),
+                                         "Zawodnicy obstawiają…")
+                self._stack.setCurrentWidget(self._splash)
+
+            case Phase.FINAL_QUESTION:
+                header = f"FINAŁ  ·  {state.final.question.category.upper()}"
+                self._show_question(header, state.current_question(), media_path,
+                                    state.final.revealed)
+
             case Phase.FINISHED:
-                self._scores.show_scores(winner_title(state), _ranking_rows(state),
-                                         "Dziękujemy za grę!", highlight_winners=True)
+                hint = "Dziękujemy za grę!"
+                if state.final_skipped:
+                    hint = "Finał pominięty – nikt nie miał dodatnich punktów. Dziękujemy za grę!"
+                self._scores.show_scores(winner_title(state), _ranking_rows(state), hint,
+                                         highlight_winners=True)
                 self._stack.setCurrentWidget(self._scores)
+
+    def _show_question(self, header: str, question: Question,
+                       media_path: Callable[[str], Path], revealed: bool) -> None:
+        path = media_path(question.media) if question.media else None
+        self._question.show_question(header, question, path, revealed)
+        self._stack.setCurrentWidget(self._question)

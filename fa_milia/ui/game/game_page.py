@@ -20,7 +20,9 @@ from fa_milia.ui.game.controller import GameController
 from fa_milia.ui.game.game_screen import GameScreen
 from fa_milia.ui.game.game_window import GameWindow
 from fa_milia.ui.game.host_panel import HostPanel
+from fa_milia.ui.game.timer import GameTimer
 from fa_milia.ui.screens import choose_game_screen
+from fa_milia.ui.sound_effects import SoundEffects
 
 OVERLAY_MAX_HEIGHT = 0.65  # nakładka zajmuje najwyżej 65% wysokości ekranu
 
@@ -33,15 +35,17 @@ class GamePage(QWidget):
         self._library = library
         self._settings = settings
         self._controller = GameController(self)
-        self._audio = AudioPlayer(self)
+        self._audio = AudioPlayer(self)  # dźwięk w pytaniu dźwiękowym
+        self._effects = SoundEffects(library.data_dir.sounds, self)  # bonus, koniec czasu, …
+        self._timer = GameTimer(self)
         self._game_window = GameWindow()
         self._game_screen_monitor: QScreen | None = None  # None = tryb jednoekranowy
-        # Klucz (runda, kolumna, rząd) ostatnio pokazanego pytania – żeby dźwięk
-        # pytania zagrał raz przy otwarciu, a nie przy każdym odświeżeniu.
-        self._shown_question_key: tuple[int, int, int] | None = None
+        # Klucz ostatnio pokazanego pytania – żeby dźwięk pytania i timer
+        # ruszyły raz przy otwarciu, a nie przy każdym odświeżeniu.
+        self._shown_question_key: tuple | None = None
 
         self._screen = GameScreen()
-        self._host = HostPanel(self._controller)
+        self._host = HostPanel(self._controller, self._timer)
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
 
@@ -51,6 +55,9 @@ class GamePage(QWidget):
         self._host.menu_requested.connect(self.request_back)
         self._host.hide_requested.connect(self.toggle_overlay)
         self._controller.state_changed.connect(self._refresh)
+        self._controller.sound.connect(self._effects.play)
+        self._timer.tick.connect(self._update_timer_display)
+        self._timer.expired.connect(lambda: self._effects.play("koniec_czasu"))
         QGuiApplication.instance().screenRemoved.connect(self._on_screen_removed)
 
         # Skróty: na tej stronie (okno prowadzącego) i w oknie ekranu gry.
@@ -77,6 +84,7 @@ class GamePage(QWidget):
         self._screen.set_text_scale(settings.game_scale / 100)
         self._host.set_scale(settings.host_scale / 100)
         self._audio.set_volume(settings.volume / 100)
+        self._effects.set_volume(settings.volume / 100)
         self._position_overlay()
 
     def start(self, state: GameState) -> None:
@@ -97,6 +105,8 @@ class GamePage(QWidget):
 
     def _leave_game(self) -> None:
         self._audio.stop()
+        self._effects.stop_all()
+        self._timer.stop()
         self._game_window.release()
         self.back_to_menu.emit()
 
@@ -171,15 +181,37 @@ class GamePage(QWidget):
         # singleShot(0, …) – wykonaj, gdy Qt skończy bieżące przeliczanie układu.
         QTimer.singleShot(0, self._position_overlay)
 
-        if state.phase == Phase.QUESTION:
-            key = (state.round_index, state.current.column, state.current.row)
-            if key != self._shown_question_key:
-                self._shown_question_key = key
-                if state.current_question().kind == ContentKind.SOUND:
-                    self._play_question_sound()
-        else:
+        key = self._question_key(state)
+        if key is None:
+            # Nie ma pytania na ekranie – cisza i bez timera.
             self._shown_question_key = None
             self._audio.stop()
+            self._timer.stop()
+            return
+        if key != self._shown_question_key:
+            # Właśnie pokazało się nowe pytanie.
+            self._shown_question_key = key
+            if state.current_question().kind == ContentKind.SOUND:
+                self._play_question_sound()
+            if self._settings.timer_enabled:
+                final = state.phase == Phase.FINAL_QUESTION
+                seconds = self._settings.final_seconds if final else self._settings.question_seconds
+                self._timer.start(seconds)
+        if state.is_revealed():
+            self._timer.stop()  # po odsłonięciu odpowiedzi timer znika
+
+    @staticmethod
+    def _question_key(state: GameState) -> tuple | None:
+        """Identyfikator wyświetlanego pytania (None, gdy pytania nie ma na ekranie)."""
+        if state.phase == Phase.QUESTION:
+            return (state.round_index, state.current.column, state.current.row)
+        if state.phase == Phase.FINAL_QUESTION:
+            return ("final",)
+        return None
+
+    def _update_timer_display(self) -> None:
+        remaining = self._timer.remaining() if self._timer.active else None
+        self._screen.set_timer(remaining, self._timer.total)
 
     def _play_question_sound(self) -> None:
         question = self._controller.state.current_question()
@@ -196,6 +228,9 @@ class GamePage(QWidget):
             return
         if self._controller.show_scores:
             self._controller.toggle_scores()
+            return
+        if state.phase == Phase.BONUS:
+            self._controller.cancel_question()  # pomyłkowe kliknięcie – pole zostaje
             return
         if state.phase == Phase.QUESTION:
             if not state.current.revealed and not state.current.marks:
@@ -218,4 +253,6 @@ class GamePage(QWidget):
     def shutdown(self) -> None:
         """Wywoływane przy zamykaniu programu – chowa okno ekranu gry."""
         self._audio.stop()
+        self._effects.stop_all()
+        self._timer.stop()
         self._game_window.release()

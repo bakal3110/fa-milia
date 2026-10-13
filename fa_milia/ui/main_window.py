@@ -7,6 +7,7 @@ from fa_milia.config import APP_NAME
 from fa_milia.core.game_state import GameError, GameState
 from fa_milia.core.library import Library
 from fa_milia.core.models import Category
+from fa_milia.core.selection import choose_final
 from fa_milia.core.settings import Settings, save_settings
 from fa_milia.ui.editors.category_editor import CategoryEditorPage
 from fa_milia.ui.editors.editor_page import LibraryEditorPage
@@ -102,7 +103,7 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentWidget(page)
 
     def _open_settings(self) -> None:
-        dialog = SettingsDialog(self._settings, self)
+        dialog = SettingsDialog(self._settings, self._library.data_dir.sounds, self)
         # exec() pokazuje okno modalne i czeka, aż użytkownik je zamknie.
         if dialog.exec() != SettingsDialog.DialogCode.Accepted:
             return
@@ -122,9 +123,16 @@ class MainWindow(QMainWindow):
         self._select_page.prepare()
         self._stack.setCurrentWidget(self._select_page)
 
-    def _start_game(self, round1: list[Category], round2: list[Category]) -> None:
+    def _start_game(self, round1: list[Category], round2: list[Category],
+                    with_final: bool) -> None:
+        final_question = None
+        if with_final:
+            finals = {f.id: f for f in self._library.complete_finals()}
+            # Pamięć wykorzystania pojawi się w etapie E5 – na razie „użytych” brak.
+            final_id, _was_used = choose_final(list(finals), used_ids=set())
+            final_question = finals.get(final_id)
         try:
-            state = GameState.new(self._player_names, round1, round2)
+            state = GameState.new(self._player_names, round1, round2, final_question)
         except GameError as error:
             QMessageBox.warning(self, "Nie można rozpocząć gry", str(error))
             return

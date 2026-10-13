@@ -26,7 +26,7 @@ ID_ROLE = Qt.ItemDataRole.UserRole
 
 class CategorySelectPage(QWidget):
     back_requested = Signal()
-    start_requested = Signal(list, list)  # kategorie rundy 1, kategorie rundy 2
+    start_requested = Signal(list, list, bool)  # kategorie rundy 1 i 2, czy z finałem
 
     def __init__(self, library: Library, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -45,8 +45,7 @@ class CategorySelectPage(QWidget):
         load_set_button.setEnabled(False)
         load_set_button.setToolTip("Dostępne od etapu E5")
         self._final_check = QCheckBox("Finał")
-        self._final_check.setEnabled(False)
-        self._final_check.setToolTip("Dostępne od etapu E4")
+        self._final_check.setChecked(True)
         tools = QHBoxLayout()
         tools.addWidget(self._counter)
         tools.addStretch()
@@ -113,6 +112,16 @@ class CategorySelectPage(QWidget):
                 check_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
                 self._table.setItem(row, column, check_item)
         self._table.blockSignals(False)
+
+        has_finals = bool(self._library.complete_finals())
+        self._final_check.setEnabled(has_finals)
+        if has_finals:
+            self._final_check.setToolTip("Pytanie finałowe zostanie wylosowane "
+                                         "spośród kompletnych pytań finałowych")
+        else:
+            self._final_check.setChecked(False)
+            self._final_check.setToolTip("Brak kompletnych pytań finałowych – "
+                                         "dodaj je w edytorze pytań finałowych")
 
         incomplete = len(self._library.categories) - len(self._categories)
         if incomplete:
@@ -189,4 +198,5 @@ class CategorySelectPage(QWidget):
         by_id = {c.id: c for c in self._categories}
         round1 = [by_id[i] for i in self._selection.rounds[1]]
         round2 = [by_id[i] for i in self._selection.rounds[2]]
-        self.start_requested.emit(round1, round2)
+        with_final = self._final_check.isEnabled() and self._final_check.isChecked()
+        self.start_requested.emit(round1, round2, with_final)

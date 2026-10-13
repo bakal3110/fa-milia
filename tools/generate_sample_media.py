@@ -1,4 +1,5 @@
-"""Generuje przykładowe obrazy (flagi) i dźwięki do fa_milia/resources/sample_media/.
+"""Generuje przykładowe obrazy (flagi) i dźwięki do fa_milia/resources/sample_media/
+oraz domyślne dźwięki efektów do fa_milia/resources/default_sounds/.
 
 Skrypt uruchamia się raz, przy tworzeniu projektu – wynik jest zapisany w repozytorium.
 Uruchomienie (z katalogu projektu):
@@ -15,7 +16,9 @@ from pathlib import Path
 from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPolygonF
 
-OUTPUT = Path(__file__).resolve().parent.parent / "fa_milia" / "resources" / "sample_media"
+RESOURCES = Path(__file__).resolve().parent.parent / "fa_milia" / "resources"
+OUTPUT = RESOURCES / "sample_media"
+SOUNDS_OUTPUT = RESOURCES / "default_sounds"
 
 # ---------------------------------------------------------------------------
 # Flagi
@@ -148,6 +151,58 @@ PANIE_JANIE = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Domyślne dźwięki efektów
+# ---------------------------------------------------------------------------
+
+
+def note(semitones_from_a4: int) -> float:
+    """Częstotliwość nuty oddalonej o podaną liczbę półtonów od A4 (440 Hz)."""
+    return 440.0 * 2 ** (semitones_from_a4 / 12)
+
+
+def mix(*parts: list[float]) -> list[float]:
+    """Nakłada kilka sygnałów na siebie (akord)."""
+    length = max(len(part) for part in parts)
+    return [sum(part[i] for part in parts if i < len(part)) / len(parts) for i in range(length)]
+
+
+def buzz(frequency: float, seconds: float, volume: float = 0.45) -> list[float]:
+    """Ostry dźwięk „brzęczyka” (fala prostokątna z łagodnym początkiem i końcem)."""
+    count = int(SAMPLE_RATE * seconds)
+    fade = int(SAMPLE_RATE * 0.01)
+    samples = []
+    for i in range(count):
+        envelope = min(1.0, i / fade, (count - i) / fade)
+        phase = (frequency * i / SAMPLE_RATE) % 1.0
+        samples.append(volume * envelope * (1.0 if phase < 0.5 else -1.0) * 0.6)
+    return samples
+
+
+C5, E5, G5, A5, C6 = note(3), note(7), note(10), note(12), note(15)
+G4, C4, E4 = note(-2), note(-9), note(-5)
+
+
+def default_sounds() -> dict[str, list[float]]:
+    bonus = []
+    for frequency in (C5, E5, G5, C6, E5, G5, C6):
+        bonus += tone(frequency, 0.09, 0.45)
+    bonus += mix(tone(C5, 0.9, 0.5), tone(E5, 0.9, 0.5), tone(G5, 0.9, 0.5), tone(C6, 0.9, 0.5))
+    return {
+        "bonus": bonus,
+        "koniec_czasu": buzz(150, 0.35) + silence(0.08) + buzz(150, 0.6),
+        "dobra_odpowiedz": tone(E5, 0.12) + tone(A5, 0.35),
+        "zla_odpowiedz": tone(note(-10), 0.18) + tone(note(-14), 0.45),
+        "start_rundy": tone(G4, 0.12) + tone(C5, 0.12) + tone(E5, 0.12) + tone(G5, 0.5),
+        "final": (tone(C4, 0.35) + tone(E4, 0.35) + tone(G4, 0.35)
+                  + mix(tone(C4, 1.2), tone(E4, 1.2), tone(G4, 1.2), tone(C5, 1.2))),
+        "zwyciezca": (tone(C5, 0.15) + silence(0.03) + tone(C5, 0.15) + silence(0.03)
+                      + tone(C5, 0.15) + silence(0.03)
+                      + mix(tone(C5, 0.9), tone(E5, 0.9), tone(G5, 0.9))
+                      + tone(A5, 0.2) + mix(tone(C5, 1.0), tone(G5, 1.0), tone(C6, 1.0))),
+    }
+
+
 def main() -> None:
     app = QGuiApplication(sys.argv)  # potrzebne do rysowania  # noqa: F841
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -167,7 +222,10 @@ def main() -> None:
     save_wav(OUTPUT / "dzwiek_wlazl_kotek.wav", melody(WLAZL_KOTEK, beat=0.38))
     save_wav(OUTPUT / "dzwiek_panie_janie.wav", melody(PANIE_JANIE, beat=0.38))
     save_wav(OUTPUT / "dzwiek_siedem_sygnalow.wav", beeps(7, 0.12, 0.13))
-    print(f"Zapisano pliki w {OUTPUT}")
+    SOUNDS_OUTPUT.mkdir(parents=True, exist_ok=True)
+    for name, samples in default_sounds().items():
+        save_wav(SOUNDS_OUTPUT / f"{name}.wav", samples)
+    print(f"Zapisano pliki w {OUTPUT} i {SOUNDS_OUTPUT}")
 
 
 if __name__ == "__main__":

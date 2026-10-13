@@ -86,3 +86,18 @@ class CategorySelection:
                 if category_id in used_ids:
                     taken_used += 1
         return taken_used
+
+
+def choose_final(final_ids: list[str], used_ids: set[str],
+                 rng: random.Random | None = None) -> tuple[str | None, bool]:
+    """Losuje pytanie finałowe – najpierw spośród nieużytych.
+
+    Zwraca (identyfikator albo None, czy trzeba było sięgnąć po użyte).
+    """
+    rng = rng or random.Random()
+    fresh = [i for i in final_ids if i not in used_ids]
+    if fresh:
+        return rng.choice(fresh), False
+    if final_ids:
+        return rng.choice(final_ids), True
+    return None, False

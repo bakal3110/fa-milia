@@ -10,6 +10,7 @@ from fa_milia.core.library import Library
 from fa_milia.core.paths import DataDir, default_data_root
 from fa_milia.core.sample_data import install_if_first_run
 from fa_milia.core.settings import load_settings
+from fa_milia.core.sounds import prepare_sounds_folder
 from fa_milia.resource_paths import resource_path
 from fa_milia.ui.main_window import MainWindow
 
@@ -26,6 +27,10 @@ def main() -> int:
     library = Library(data_dir)
     install_if_first_run(library, resource_path("sample_media"))
     library.remove_unused_media()
+    try:
+        prepare_sounds_folder(data_dir.sounds, resource_path("default_sounds"))
+    except OSError:
+        pass  # brak dźwięków nie może zatrzymać programu
 
     settings = load_settings(data_dir.settings_file)
     window = MainWindow(library, settings)

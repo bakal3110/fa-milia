@@ -2,8 +2,10 @@
 
 from dataclasses import replace
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QGuiApplication
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -17,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSlider,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -28,9 +31,11 @@ from fa_milia.config import SHORTCUTS
 from fa_milia.core.game_state import RoundState
 from fa_milia.core.models import Category
 from fa_milia.core.settings import MAX_SCALE, MIN_SCALE, Settings
+from fa_milia.core.sounds import SOUND_EVENTS, find_sound
 from fa_milia.ui.game.board_widget import BoardWidget
 from fa_milia.ui.game.host_panel import PlayerRow, host_style
 from fa_milia.ui.screens import describe_screen
+from fa_milia.ui.sound_effects import SoundEffects
 
 PREVIEW_CATEGORIES = ["Zwierzęta", "Polska", "Bajki i baśnie", "Kuchnia", "Kosmos", "Sport"]
 
@@ -46,8 +51,11 @@ def _scale_slider() -> QSlider:
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: Settings, parent: QWidget | None = None) -> None:
+    def __init__(self, settings: Settings, sounds_dir: Path,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._sounds_dir = sounds_dir
+        self._effects = SoundEffects(sounds_dir, self)
         self.setWindowTitle("Ustawienia")
         self.resize(900, 640)
         self._settings = settings
@@ -56,6 +64,7 @@ class SettingsDialog(QDialog):
         tabs = QTabWidget()
         tabs.addTab(self._build_screens_tab(), "Ekrany")
         tabs.addTab(self._build_scaling_tab(), "Skalowanie")
+        tabs.addTab(self._build_timer_sound_tab(), "Timer i dźwięk")
         tabs.addTab(self._build_shortcuts_tab(), "Skróty klawiszowe")
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save
@@ -198,6 +207,90 @@ class SettingsDialog(QDialog):
         self._host_value.setText(f"{value}%")
         self._host_preview.setStyleSheet(host_style(value / 100))
 
+    # --- Zakładka „Timer i dźwięk” ------------------------------------------
+
+    def _build_timer_sound_tab(self) -> QWidget:
+        self._timer_enabled = QCheckBox("Włącz timer (odliczanie widoczne na ekranie gry)")
+        self._timer_enabled.setChecked(self._settings.timer_enabled)
+        self._question_seconds = QSpinBox()
+        self._question_seconds.setRange(5, 600)
+        self._question_seconds.setSuffix(" s")
+        self._question_seconds.setValue(self._settings.question_seconds)
+        self._final_seconds = QSpinBox()
+        self._final_seconds.setRange(5, 600)
+        self._final_seconds.setSuffix(" s")
+        self._final_seconds.setValue(self._settings.final_seconds)
+        self._timer_enabled.toggled.connect(self._question_seconds.setEnabled)
+        self._timer_enabled.toggled.connect(self._final_seconds.setEnabled)
+        self._question_seconds.setEnabled(self._settings.timer_enabled)
+        self._final_seconds.setEnabled(self._settings.timer_enabled)
+
+        timer_group = QGroupBox("Timer")
+        timer_form = QFormLayout(timer_group)
+        timer_form.addRow(self._timer_enabled)
+        timer_form.addRow("Czas na zwykłe pytanie i bonus:", self._question_seconds)
+        timer_form.addRow("Czas na pytanie finałowe:", self._final_seconds)
+
+        self._volume = QSlider(Qt.Orientation.Horizontal)
+        self._volume.setRange(0, 100)
+        self._volume.setValue(self._settings.volume)
+        self._volume_label = QLabel()
+        self._volume.valueChanged.connect(self._on_volume_changed)
+        test_button = QPushButton("▶ Próbka")
+        test_button.setToolTip("Odtwarza dźwięk „bonus” z wybraną głośnością")
+        test_button.clicked.connect(lambda: self._effects.play("bonus"))
+        volume_row = QHBoxLayout()
+        volume_row.addWidget(self._volume, stretch=1)
+        volume_row.addWidget(self._volume_label)
+        volume_row.addWidget(test_button)
+
+        open_folder = QPushButton("Otwórz folder dźwięków")
+        open_folder.clicked.connect(self._open_sounds_folder)
+        self._sound_status = QLabel()
+        self._sound_status.setWordWrap(True)
+        self._sound_status.setTextFormat(Qt.TextFormat.RichText)
+        refresh = QPushButton("Odśwież listę")
+        refresh.clicked.connect(self._update_sound_status)
+
+        sound_group = QGroupBox("Dźwięk")
+        sound_layout = QVBoxLayout(sound_group)
+        sound_form = QFormLayout()
+        sound_form.addRow("Głośność:", volume_row)
+        sound_layout.addLayout(sound_form)
+        buttons = QHBoxLayout()
+        buttons.addWidget(open_folder)
+        buttons.addWidget(refresh)
+        buttons.addStretch()
+        sound_layout.addLayout(buttons)
+        sound_layout.addWidget(self._sound_status)
+
+        self._on_volume_changed()
+        self._update_sound_status()
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.addWidget(timer_group)
+        layout.addWidget(sound_group)
+        layout.addStretch()
+        return tab
+
+    def _on_volume_changed(self) -> None:
+        self._volume_label.setText(f"{self._volume.value()}%")
+        self._effects.set_volume(self._volume.value() / 100)
+
+    def _open_sounds_folder(self) -> None:
+        self._sounds_dir.mkdir(parents=True, exist_ok=True)
+        # Otwiera folder w menedżerze plików (Dolphin w KDE).
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._sounds_dir)))
+
+    def _update_sound_status(self) -> None:
+        lines = [f"Folder: <code>{self._sounds_dir}</code><br>"]
+        for name, description in SOUND_EVENTS.items():
+            path = find_sound(self._sounds_dir, name)
+            mark = f"✔ {path.name}" if path else "– brak pliku (cisza)"
+            lines.append(f"<b>{name}</b> – {description}: {mark}")
+        self._sound_status.setText("<br>".join(lines))
+
     # --- Zakładka „Skróty klawiszowe” --------------------------------------
 
     def _build_shortcuts_tab(self) -> QWidget:
@@ -223,9 +316,14 @@ class SettingsDialog(QDialog):
             fullscreen=self._fullscreen.isChecked(),
             game_scale=self._game_slider.value(),
             host_scale=self._host_slider.value(),
+            timer_enabled=self._timer_enabled.isChecked(),
+            question_seconds=self._question_seconds.value(),
+            final_seconds=self._final_seconds.value(),
+            volume=self._volume.value(),
         )
         return settings.normalized()
 
     def done(self, result: int) -> None:
         self._close_identify_windows()
+        self._effects.stop_all()
         super().done(result)
