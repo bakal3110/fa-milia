@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Ikona Fa milia: mini plansza Va banque -->
+  <rect x="8" y="8" width="240" height="240" rx="36" fill="#0b1a4a"/>
+  <g fill="#1d3fb3">
+    <rect x="32" y="40" width="56" height="40" rx="6" fill="#f2c94c"/>
+    <rect x="100" y="40" width="56" height="40" rx="6" fill="#f2c94c"/>
+    <rect x="168" y="40" width="56" height="40" rx="6" fill="#f2c94c"/>
+    <rect x="32" y="92" width="56" height="40" rx="6"/>
+    <rect x="100" y="92" width="56" height="40" rx="6"/>
+    <rect x="168" y="92" width="56" height="40" rx="6"/>
+    <rect x="32" y="144" width="56" height="40" rx="6"/>
+    <rect x="100" y="144" width="56" height="40" rx="6" fill="#0b1a4a" stroke="#1d3fb3" stroke-width="4"/>
+    <rect x="168" y="144" width="56" height="40" rx="6"/>
+    <rect x="32" y="196" width="56" height="28" rx="6"/>
+    <rect x="100" y="196" width="56" height="28" rx="6"/>
+    <rect x="168" y="196" width="56" height="28" rx="6" fill="#0b1a4a" stroke="#1d3fb3" stroke-width="4"/>
+  </g>
+</svg>
