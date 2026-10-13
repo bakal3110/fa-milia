@@ -90,6 +90,7 @@ class FitTextLabel(QWidget):
         self._max_ratio = max_ratio
         self._bold = bold
         self._shadow = shadow
+        self._scale = 1.0  # skalowanie z ustawień (1.0 = 100%)
         # Ignored = układ może dowolnie zmniejszyć widżet (nie wymusza minimalnego rozmiaru).
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
 
@@ -97,6 +98,10 @@ class FitTextLabel(QWidget):
         if text != self._text:
             self._text = text
             self.update()  # poproś Qt o ponowne narysowanie
+
+    def set_scale(self, scale: float) -> None:
+        self._scale = scale
+        self.update()
 
     def set_color(self, color: str) -> None:
         self._color = QColor(color)
@@ -108,7 +113,8 @@ class FitTextLabel(QWidget):
         margin = self.height() * 0.04
         rect = QRectF(self.rect()).adjusted(margin, margin, -margin, -margin)
         draw_fitted_text(painter, rect, self._text, self._color,
-                         int(self.height() * self._max_ratio), self._bold, self._shadow)
+                         int(self.height() * self._max_ratio * self._scale),
+                         self._bold, self._shadow)
 
 
 class ScaledImage(QWidget):

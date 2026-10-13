@@ -232,3 +232,28 @@ def test_history_round_trip_through_dict():
     assert restored.last_label() == "otwarcie"
     restored.undo()
     assert restored.state.phase == Phase.BOARD
+
+
+# --- Ostatnia poprawna odpowiedź ------------------------------------------------
+
+
+def test_last_correct_player_is_remembered():
+    game = make_game()
+    assert game.last_correct is None
+    game.open_tile(0, 1)
+    game.mark(0, False)
+    assert game.last_correct is None
+    game.mark(2, True)
+    assert game.last_correct == 2
+    game.close_question()
+    game.open_tile(0, 2)
+    game.mark(1, False)  # zła odpowiedź nie zmienia znacznika
+    assert game.last_correct == 2
+
+
+def test_undo_restores_previous_last_correct():
+    history = GameHistory(make_game())
+    history.apply("otwarcie", lambda s: s.open_tile(0, 1))
+    history.apply("Ania dobrze", lambda s: s.mark(0, True))
+    history.undo()
+    assert history.state.last_correct is None

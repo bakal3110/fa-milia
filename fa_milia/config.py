@@ -43,3 +43,13 @@ BONUS_SAME_CATEGORY_FACTOR = 0.3
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 SOUND_EXTENSIONS = (".mp3", ".wav", ".ogg")
+
+# --- Skróty klawiszowe (wyświetlane w Ustawieniach i opisane w README) -----
+
+SHORTCUTS = [
+    ("Spacja", "Odsłoń odpowiedź / wróć do planszy / dalej"),
+    ("Esc", "Wstecz; w pytaniu zamyka pytanie; na planszy – menu (z potwierdzeniem)"),
+    ("Ctrl+Z", "Cofnij ostatnią akcję w grze"),
+    ("F2", "Pokaż / ukryj panel prowadzącego (tryb jednoekranowy)"),
+    ("F11", "Pełny ekran / okno"),
+]

@@ -118,6 +118,7 @@ class ScoresView(ClickableView):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._scale = 1.0
         self._title = FitTextLabel(GOLD, max_ratio=0.7, shadow=True)
         self._rows_widget = QWidget()
         self._rows = QGridLayout(self._rows_widget)
@@ -131,6 +132,11 @@ class ScoresView(ClickableView):
         layout.addWidget(self._title, stretch=2)
         layout.addWidget(self._rows_widget, stretch=8)
         layout.addWidget(self._hint, stretch=1)
+
+    def set_scale(self, scale: float) -> None:
+        self._scale = scale
+        self._title.set_scale(scale)
+        self._hint.set_scale(scale)
 
     def show_scores(self, title: str, ranking: list[tuple[int, str, int]], hint: str = "",
                     highlight_winners: bool = False) -> None:
@@ -147,6 +153,8 @@ class ScoresView(ClickableView):
             name_label.set_text(name)
             score_label = FitTextLabel(color, max_ratio=0.6)
             score_label.set_text(format_points(score))
+            for label in (place_label, name_label, score_label):
+                label.set_scale(self._scale)
             self._rows.addWidget(place_label, line, 0)
             self._rows.addWidget(name_label, line, 1)
             self._rows.addWidget(score_label, line, 2)
@@ -197,11 +205,26 @@ class GameScreen(QWidget):
         self._question.replay_requested.connect(self.replay_requested)
         self._scores.clicked.connect(self.advance_requested)
 
-    def show_state(self, state: GameState, media_path: Callable[[str], Path]) -> None:
+    def set_text_scale(self, scale: float) -> None:
+        """Skalowanie tekstu z ustawień (1.0 = 100%)."""
+        self._board.set_scale(scale)
+        self._scores.set_scale(scale)
+        # findChildren znajduje wszystkie widżety danego typu wewnątrz widoku pytania.
+        for label in self._question.findChildren(FitTextLabel):
+            label.set_scale(scale)
+
+    def show_state(self, state: GameState, media_path: Callable[[str], Path],
+                   show_scores: bool = False) -> None:
         """Pokazuje widok odpowiadający fazie gry.
 
         media_path to funkcja zamieniająca nazwę pliku mediów na pełną ścieżkę.
+        show_scores=True: prowadzący poprosił o tabelę wyników (zamiast planszy/pytania).
         """
+        if show_scores and state.phase in (Phase.BOARD, Phase.QUESTION):
+            self._scores.show_scores(f"Wyniki – runda {state.round.number}", _ranking_rows(state),
+                                     "Kliknij lub naciśnij spację, aby wrócić do gry")
+            self._stack.setCurrentWidget(self._scores)
+            return
         match state.phase:
             case Phase.BOARD:
                 self._board.set_round(state.round)

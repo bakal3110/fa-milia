@@ -7,11 +7,13 @@ from fa_milia.config import APP_NAME
 from fa_milia.core.game_state import GameError, GameState
 from fa_milia.core.library import Library
 from fa_milia.core.models import Category
+from fa_milia.core.settings import Settings, save_settings
 from fa_milia.ui.editors.category_editor import CategoryEditorPage
 from fa_milia.ui.editors.editor_page import LibraryEditorPage
 from fa_milia.ui.editors.final_editor import FinalEditorPage
 from fa_milia.ui.game.game_page import GamePage
 from fa_milia.ui.menu_screen import MenuScreen
+from fa_milia.ui.settings_dialog import SettingsDialog
 from fa_milia.ui.setup.category_select_page import CategorySelectPage
 from fa_milia.ui.setup.players_page import PlayersPage
 
@@ -20,7 +22,6 @@ NOT_READY_YET = {
     "continue": "E5",
     "sets": "E5",
     "transfer": "E5",
-    "settings": "E3",
 }
 
 
@@ -34,9 +35,10 @@ def _polish_plural(count: int, one: str, few: str, many: str) -> str:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, library: Library) -> None:
+    def __init__(self, library: Library, settings: Settings) -> None:
         super().__init__()
         self._library = library
+        self._settings = settings
         self._player_names: list[str] = []
         self.setWindowTitle(APP_NAME)
         self.resize(1280, 800)
@@ -50,7 +52,7 @@ class MainWindow(QMainWindow):
         self._final_page = FinalEditorPage(library)
         self._players_page = PlayersPage()
         self._select_page = CategorySelectPage(library)
-        self._game_page = GamePage(library)
+        self._game_page = GamePage(library, settings)
         for page in (self._menu, self._category_page, self._final_page,
                      self._players_page, self._select_page, self._game_page):
             self._stack.addWidget(page)
@@ -90,12 +92,26 @@ class MainWindow(QMainWindow):
                 self._open_editor(self._category_page)
             case "finals":
                 self._open_editor(self._final_page)
+            case "settings":
+                self._open_settings()
             case "quit":
                 self.close()
 
     def _open_editor(self, page: LibraryEditorPage) -> None:
         page.reload()
         self._stack.setCurrentWidget(page)
+
+    def _open_settings(self) -> None:
+        dialog = SettingsDialog(self._settings, self)
+        # exec() pokazuje okno modalne i czeka, aż użytkownik je zamknie.
+        if dialog.exec() != SettingsDialog.DialogCode.Accepted:
+            return
+        self._settings = dialog.result_settings()
+        try:
+            save_settings(self._library.data_dir.settings_file, self._settings)
+        except OSError as error:
+            QMessageBox.warning(self, "Ustawienia", f"Nie udało się zapisać ustawień:\n{error}")
+        self._game_page.apply_settings(self._settings)
 
     def _show_players_page(self) -> None:
         self._stack.setCurrentWidget(self._players_page)
@@ -151,4 +167,5 @@ class MainWindow(QMainWindow):
             if not self._game_page.confirm_quit():
                 event.ignore()
                 return
+        self._game_page.shutdown()  # chowa okno ekranu gry na drugim monitorze
         event.accept()

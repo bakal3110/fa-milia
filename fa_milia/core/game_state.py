@@ -127,6 +127,9 @@ class GameState:
     round_index: int = 0  # 0 = runda 1, 1 = runda 2
     phase: Phase = Phase.BOARD
     current: OpenQuestion | None = None
+    # Indeks zawodnika, który ostatnio odpowiedział dobrze (zwykle on wybiera
+    # następne pole). None = nikt jeszcze nie odpowiedział dobrze.
+    last_correct: int | None = None
 
     # --- Tworzenie gry -----------------------------------------------------
 
@@ -206,6 +209,8 @@ class GameState:
         change = self.current.value if correct else -self.current.value
         self.players[player_index].score += change
         self.current.marks[player_index] = correct
+        if correct:
+            self.last_correct = player_index
         return change
 
     def close_question(self) -> None:
@@ -257,6 +262,7 @@ class GameState:
             "round_index": self.round_index,
             "phase": self.phase.value,
             "current": self.current.to_dict() if self.current else None,
+            "last_correct": self.last_correct,
         }
 
     @classmethod
@@ -267,4 +273,6 @@ class GameState:
             round_index=data["round_index"],
             phase=Phase(data["phase"]),
             current=OpenQuestion.from_dict(data["current"]) if data["current"] else None,
+            # .get – starsze zapisy mogą nie mieć tego pola
+            last_correct=data.get("last_correct"),
         )

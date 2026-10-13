@@ -34,14 +34,28 @@ Przy pierwszym uruchomieniu program tworzy katalog danych
 .venv/bin/pytest
 ```
 
-## Skróty klawiszowe (stan na etap E2)
+## Skróty klawiszowe
 
 | Klawisz | Działanie |
 |---|---|
-| Spacja | w grze: odsłoń odpowiedź / wróć do planszy / następna runda |
-| Esc | wstecz; w pytaniu: zamknij pytanie; na planszy: menu (z potwierdzeniem) |
-| Ctrl+Z | w grze: cofnij ostatnią akcję |
+| Spacja | odsłoń odpowiedź / wróć do planszy / dalej |
+| Esc | wstecz; w pytaniu zamyka pytanie; na planszy – menu (z potwierdzeniem) |
+| Ctrl+Z | cofnij ostatnią akcję w grze |
+| F2 | pokaż / ukryj panel prowadzącego (tryb jednoekranowy) |
 | F11 | pełny ekran / okno |
+
+Lista skrótów jest też w programie: Ustawienia → Skróty klawiszowe.
+
+## Dwa ekrany
+
+Podłącz telewizor lub rzutnik jako **ekran rozszerzony** (nie lustrzany).
+Po rozpoczęciu gry plansza otworzy się na drugim monitorze, a panel prowadzącego
+(z poprawnymi odpowiedziami) zostanie na laptopie. Monitor ekranu gry można wybrać
+w Ustawieniach → Ekrany („Pokaż nazwy na monitorach” pomaga je rozpoznać).
+
+Przy jednym monitorze program działa w trybie jednoekranowym: panel prowadzącego jest
+nakładką na dole ekranu (F2 ukrywa/pokazuje), a odpowiedź widać dopiero po
+przytrzymaniu przycisku „Pokaż mi”.
 
 ## Struktura projektu
 

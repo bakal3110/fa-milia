@@ -20,11 +20,23 @@ class GameController(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._history: GameHistory | None = None
+        # Czy ekran gry pokazuje tabelę wyników zamiast planszy/pytania.
+        # To tylko widok – nie jest częścią stanu gry i nie trafia do historii.
+        self._show_scores = False
 
     # --- Dostęp do stanu ---------------------------------------------------
 
     def start(self, state: GameState) -> None:
         self._history = GameHistory(state)
+        self._show_scores = False
+        self.state_changed.emit()
+
+    @property
+    def show_scores(self) -> bool:
+        return self._show_scores
+
+    def toggle_scores(self) -> None:
+        self._show_scores = not self._show_scores
         self.state_changed.emit()
 
     @property
@@ -80,6 +92,9 @@ class GameController(QObject):
         """„Dalej” – spacja lub kliknięcie w ekran gry."""
         state = self.state
         if state is None:
+            return
+        if self._show_scores:  # najpierw zamykamy tabelę wyników
+            self.toggle_scores()
             return
         if state.phase == Phase.QUESTION:
             if not state.current.revealed:

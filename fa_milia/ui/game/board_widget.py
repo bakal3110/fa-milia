@@ -26,12 +26,17 @@ class BoardWidget(QWidget):
         self._round: RoundState | None = None
         self._hover: tuple[int, int] | None = None
         self._clickable = True
+        self._scale = 1.0  # skalowanie tekstu z ustawień
         self.setMouseTracking(True)  # zdarzenia ruchu myszy także bez wciśniętego przycisku
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def set_round(self, round_state: RoundState, clickable: bool = True) -> None:
         self._round = round_state
         self._clickable = clickable
+        self.update()
+
+    def set_scale(self, scale: float) -> None:
+        self._scale = scale
         self.update()
 
     # --- Geometria ---------------------------------------------------------
@@ -80,7 +85,7 @@ class BoardWidget(QWidget):
             name = self._round.categories[column].name.upper()
             padding = rect.width() * 0.06
             draw_fitted_text(painter, rect.adjusted(padding, padding, -padding, -padding),
-                             name, QColor("white"), int(rect.height() * 0.32))
+                             name, QColor("white"), int(rect.height() * 0.32 * self._scale))
             painter.setPen(Qt.PenStyle.NoPen)
 
         for (column, row), rect in tiles.items():
@@ -94,7 +99,7 @@ class BoardWidget(QWidget):
             padding = rect.height() * 0.12
             draw_fitted_text(painter, rect.adjusted(padding, padding, -padding, -padding),
                              format_points(self._round.value(row)), QColor(GOLD),
-                             int(rect.height() * 0.62), shadow=True)
+                             int(rect.height() * 0.62 * self._scale), shadow=True)
             painter.setPen(Qt.PenStyle.NoPen)
 
     # --- Mysz --------------------------------------------------------------
