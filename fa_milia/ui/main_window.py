@@ -1,18 +1,22 @@
 """Główne okno programu: przełącza między menu a poszczególnymi ekranami."""
 
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
-from PySide6.QtWidgets import QMainWindow, QStackedWidget
+from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget
 
 from fa_milia.config import APP_NAME
+from fa_milia.core.game_state import GameError, GameState
 from fa_milia.core.library import Library
+from fa_milia.core.models import Category
 from fa_milia.ui.editors.category_editor import CategoryEditorPage
 from fa_milia.ui.editors.editor_page import LibraryEditorPage
 from fa_milia.ui.editors.final_editor import FinalEditorPage
+from fa_milia.ui.game.game_page import GamePage
 from fa_milia.ui.menu_screen import MenuScreen
+from fa_milia.ui.setup.category_select_page import CategorySelectPage
+from fa_milia.ui.setup.players_page import PlayersPage
 
 # Pozycje menu, które powstaną w kolejnych etapach: klucz → etap.
 NOT_READY_YET = {
-    "new_game": "E2",
     "continue": "E5",
     "sets": "E5",
     "transfer": "E5",
@@ -33,6 +37,7 @@ class MainWindow(QMainWindow):
     def __init__(self, library: Library) -> None:
         super().__init__()
         self._library = library
+        self._player_names: list[str] = []
         self.setWindowTitle(APP_NAME)
         self.resize(1280, 800)
 
@@ -43,12 +48,21 @@ class MainWindow(QMainWindow):
         self._menu = MenuScreen()
         self._category_page = CategoryEditorPage(library)
         self._final_page = FinalEditorPage(library)
-        for page in (self._menu, self._category_page, self._final_page):
+        self._players_page = PlayersPage()
+        self._select_page = CategorySelectPage(library)
+        self._game_page = GamePage(library)
+        for page in (self._menu, self._category_page, self._final_page,
+                     self._players_page, self._select_page, self._game_page):
             self._stack.addWidget(page)
 
         self._menu.action_requested.connect(self._on_menu_action)
         self._category_page.back_requested.connect(self.show_menu)
         self._final_page.back_requested.connect(self.show_menu)
+        self._players_page.back_requested.connect(self.show_menu)
+        self._players_page.players_chosen.connect(self._on_players_chosen)
+        self._select_page.back_requested.connect(self._show_players_page)
+        self._select_page.start_requested.connect(self._start_game)
+        self._game_page.back_to_menu.connect(self.show_menu)
 
         for key, stage in NOT_READY_YET.items():
             self._menu.set_action_enabled(key, False, f"Dostępne od etapu {stage}")
@@ -70,20 +84,42 @@ class MainWindow(QMainWindow):
     def _on_menu_action(self, key: str) -> None:
         # match/case (Python 3.10+) – czytelniejsza wersja długiego if/elif.
         match key:
+            case "new_game":
+                self._show_players_page()
             case "categories":
-                self._open_page(self._category_page)
+                self._open_editor(self._category_page)
             case "finals":
-                self._open_page(self._final_page)
+                self._open_editor(self._final_page)
             case "quit":
                 self.close()
 
-    def _open_page(self, page: LibraryEditorPage) -> None:
+    def _open_editor(self, page: LibraryEditorPage) -> None:
         page.reload()
         self._stack.setCurrentWidget(page)
 
+    def _show_players_page(self) -> None:
+        self._stack.setCurrentWidget(self._players_page)
+        self._players_page.prepare()
+
+    def _on_players_chosen(self, names: list[str]) -> None:
+        self._player_names = names
+        self._select_page.prepare()
+        self._stack.setCurrentWidget(self._select_page)
+
+    def _start_game(self, round1: list[Category], round2: list[Category]) -> None:
+        try:
+            state = GameState.new(self._player_names, round1, round2)
+        except GameError as error:
+            QMessageBox.warning(self, "Nie można rozpocząć gry", str(error))
+            return
+        self._stack.setCurrentWidget(self._game_page)
+        self._game_page.start(state)
+
     def _on_escape(self) -> None:
+        # Każda strona poza menu ma metodę request_back() – „wstecz” dla tej strony.
+        # hasattr sprawdza, czy obiekt ma taki atrybut/metodę.
         current = self._stack.currentWidget()
-        if isinstance(current, LibraryEditorPage):
+        if hasattr(current, "request_back"):
             current.request_back()
 
     def toggle_fullscreen(self) -> None:
@@ -111,4 +147,8 @@ class MainWindow(QMainWindow):
         if isinstance(current, LibraryEditorPage) and not current.maybe_leave():
             event.ignore()  # użytkownik anulował – okno zostaje otwarte
             return
+        if current is self._game_page and self._game_page.is_game_running():
+            if not self._game_page.confirm_quit():
+                event.ignore()
+                return
         event.accept()

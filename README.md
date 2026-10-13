@@ -34,12 +34,14 @@ Przy pierwszym uruchomieniu program tworzy katalog danych
 .venv/bin/pytest
 ```
 
-## Skróty klawiszowe (stan na etap E1)
+## Skróty klawiszowe (stan na etap E2)
 
 | Klawisz | Działanie |
 |---|---|
+| Spacja | w grze: odsłoń odpowiedź / wróć do planszy / następna runda |
+| Esc | wstecz; w pytaniu: zamknij pytanie; na planszy: menu (z potwierdzeniem) |
+| Ctrl+Z | w grze: cofnij ostatnią akcję |
 | F11 | pełny ekran / okno |
-| Esc | powrót do menu głównego (z edytora) |
 
 ## Struktura projektu
 
