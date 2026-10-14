@@ -29,7 +29,6 @@ from fa_milia.ui.sound_effects import SoundEffects
 
 OVERLAY_MAX_HEIGHT = 0.65  # nakładka zajmuje najwyżej 65% wysokości ekranu
 BOARD_FILL_MS = 2500  # czas pojawiania się pól na początku rundy
-BOARD_FILL_FADE_MS = 500  # muzyka board_fill cichnie przez ostatnie pół sekundy
 
 
 class GamePage(QWidget):
@@ -251,10 +250,7 @@ class GamePage(QWidget):
             return
         self._filled_rounds.add(state.round_index)
         self._screen.play_board_fill(BOARD_FILL_MS)
-        self._effects.play("board_fill")
-        # Muzyka ma trwać tylko tyle, co animacja – pod koniec łagodnie ją wyciszamy.
-        QTimer.singleShot(BOARD_FILL_MS - BOARD_FILL_FADE_MS,
-                          lambda: self._effects.fade_out("board_fill", BOARD_FILL_FADE_MS))
+        self._effects.play("board_fill")  # gra w całości, do końca pliku
 
     def _on_timer_expired(self) -> None:
         self._effects.fade_out("final_countdown", 300)

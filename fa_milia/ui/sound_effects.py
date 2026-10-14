@@ -5,6 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject
 
 from fa_milia.core.sounds import find_sound
+from fa_milia.resource_paths import resource_path
 from fa_milia.ui.audio import AudioPlayer
 
 
@@ -25,7 +26,8 @@ class SoundEffects(QObject):
     def play(self, name: str) -> None:
         # Plik szukamy przy każdym odtworzeniu – można więc dorzucać dźwięki
         # do folderu w trakcie działania programu.
-        path = find_sound(self._sounds_dir, name)
+        # Plik użytkownika z sounds/ albo dźwięk wbudowany w program.
+        path = find_sound(self._sounds_dir, name, resource_path("default_sounds"))
         if path is None:
             return  # brak pliku = brak dźwięku, bez błędu
         if name not in self._players:

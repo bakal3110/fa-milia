@@ -32,7 +32,8 @@ from fa_milia.config import SHORTCUTS
 from fa_milia.core.game_state import RoundState
 from fa_milia.core.models import Category
 from fa_milia.core.settings import MAX_SCALE, MIN_SCALE, Settings
-from fa_milia.core.sounds import SOUND_EVENTS, find_sound
+from fa_milia.core.sounds import SOUND_EVENTS, find_sound, is_builtin
+from fa_milia.resource_paths import resource_path
 from fa_milia.core.usage import UsageMemory
 from fa_milia.ui.game.board_widget import BoardWidget
 from fa_milia.ui.game.host_panel import PlayerRow, host_style
@@ -298,10 +299,16 @@ class SettingsDialog(QDialog):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._sounds_dir)))
 
     def _update_sound_status(self) -> None:
-        lines = [f"Folder: <code>{self._sounds_dir}</code><br>"]
+        defaults = resource_path("default_sounds")
+        lines = [f"Folder do podmiany dźwięków: <code>{self._sounds_dir}</code><br>"]
         for name, description in SOUND_EVENTS.items():
-            path = find_sound(self._sounds_dir, name)
-            mark = f"✔ {path.name}" if path else "– brak pliku (cisza)"
+            path = find_sound(self._sounds_dir, name, defaults)
+            if path is None:
+                mark = "– brak (cisza)"
+            elif is_builtin(path, defaults):
+                mark = "✔ wbudowany"
+            else:
+                mark = f"✔ własny: {path.name}"
             lines.append(f"<b>{name}</b> – {description}: {mark}")
         self._sound_status.setText("<br>".join(lines))
 

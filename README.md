@@ -122,17 +122,12 @@ przytrzymaniu przycisku „Pokaż mi”.
 
 ## Dźwięki i muzyka
 
-**Gdzie wrzucić pliki:** do folderu `sounds` w katalogu danych programu:
-
-- Linux: `~/.local/share/fa-milia/sounds/`
-- Windows: `Fa milia - dane\sounds\` obok pliku `Fa milia.exe`
-
-Folder otworzysz też z programu: Ustawienia → Timer i dźwięk → „Otwórz folder dźwięków”.
-Obsługiwane formaty: .mp3, .ogg, .wav. Nazwy plików:
+Program ma **wbudowane** dźwięki i muzykę (`fa_milia/resources/default_sounds/`) – są
+w pliku wykonywalnym, więc działają od razu po instalacji, także na Windows.
 
 | Plik | Kiedy gra |
 |---|---|
-| `board_fill` | pojawianie się planszy na początku rundy (ok. 2,5 s, potem wyciszenie) |
+| `board_fill` | pojawianie się planszy na początku rundy (gra w całości) |
 | `premia` | trafienie na pole z premią |
 | `good_answer` | dobra odpowiedź |
 | `zla_odpowiedz` | zła odpowiedź |
@@ -141,11 +136,19 @@ Obsługiwane formaty: .mp3, .ogg, .wav. Nazwy plików:
 | `final_countdown` | muzyka w trakcie pytania finałowego (ok. 30 s) |
 | `zwyciezca` | ekran zwycięzcy |
 
-Przy pierwszym uruchomieniu program dodaje proste dźwięki domyślne (.wav) – plik .mp3
-o tej samej nazwie ma pierwszeństwo, więc wystarczy dorzucić własne. Starsze nazwy
-(`bonus`, `koniec_czasu`, `dobra_odpowiedz`, `start_rundy`) nadal działają, gdy brak pliku
-o nowej nazwie. Brak pliku nie jest błędem – program po prostu nie zagra dźwięku.
-Lista znalezionych plików: Ustawienia → Timer i dźwięk.
+**Podmiana dźwięku:** wrzuć plik o tej samej nazwie (.mp3, .ogg lub .wav) do folderu
+`sounds` w katalogu danych – zagra zamiast wbudowanego. Usunięcie go przywraca dźwięk
+wbudowany.
+
+- Linux: `~/.local/share/fa-milia/sounds/`
+- Windows: `Fa milia - dane\sounds\` obok pliku `Fa milia.exe`
+
+Folder otworzysz z programu: Ustawienia → Timer i dźwięk → „Otwórz folder dźwięków”;
+lista pod spodem pokazuje, czy gra dźwięk wbudowany, czy własny.
+
+**Zmiana dźwięków wbudowanych na stałe:** podmień pliki w
+`fa_milia/resources/default_sounds/` i zbuduj program ponownie (`./install.sh` po
+`packaging/build_linux.sh`, na Windows `packaging\build_windows.bat`).
 
 ## Zapis gry, pamięć wykorzystania, zestawy
 
