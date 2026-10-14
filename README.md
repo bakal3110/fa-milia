@@ -58,7 +58,19 @@ packaging/build_linux.sh folder   # folder: dist/fa-milia/fa-milia
 `./install.sh` kopiuje `dist/fa-milia` do `~/.local/bin`, a ikonę i plik `.desktop` do
 katalogów menu KDE.
 
-### Windows
+### Windows – automatycznie przez GitHub (najprościej)
+
+Plik `.github/workflows/build-windows.yml` sprawia, że po każdym `git push` do GitHuba
+serwer z Windows uruchamia testy i buduje program. Gotowe pliki pobierzesz z zakładki
+**Actions** → ostatni przebieg „Budowanie dla Windows” → sekcja **Artifacts**:
+
+- `Fa-milia-Windows-jeden-plik` – sam `Fa milia.exe`,
+- `Fa-milia-Windows-folder` – wariant „folder” (rzadziej oznaczany przez antywirusy).
+
+Budowę można też uruchomić ręcznie: Actions → „Budowanie dla Windows” → *Run workflow*.
+Repozytorium najlepiej ustawić jako **prywatne** (zawiera pliki muzyczne).
+
+### Windows – ręcznie na komputerze z Windows
 
 PyInstaller nie potrafi zbudować pliku .exe na Linuksie – trzeba to zrobić na komputerze
 z Windows:

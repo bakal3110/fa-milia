@@ -1,0 +1,49 @@
+# Automatyczne budowanie Fa milia.exe na serwerach GitHuba (Windows).
+#
+# Uruchamia się przy każdym wysłaniu kodu (git push) oraz ręcznie:
+# zakładka Actions → „Budowanie dla Windows” → Run workflow.
+# Gotowy plik: zakładka Actions → wybrany przebieg → sekcja Artifacts.
+
+name: Budowanie dla Windows
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Pobranie kodu
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Instalacja bibliotek
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Testy
+        run: python -m pytest -q
+
+      - name: Budowanie (jeden plik .exe)
+        run: pyinstaller --noconfirm --clean --distpath dist/plik --workpath build/plik packaging/fa-milia.spec
+
+      - name: Budowanie (wariant folder)
+        env:
+          FA_MILIA_ONEDIR: "1"
+        run: pyinstaller --noconfirm --clean --distpath dist/folder --workpath build/folder packaging/fa-milia.spec
+
+      - name: Zapis pliku .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fa-milia-Windows-jeden-plik
+          path: dist/plik/Fa milia.exe
+
+      - name: Zapis wariantu folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fa-milia-Windows-folder
+          path: dist/folder/
