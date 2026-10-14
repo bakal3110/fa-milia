@@ -1,25 +1,58 @@
 """Położenie katalogu z danymi użytkownika.
 
-Domyślnie jest to ~/.local/share/fa-milia/ (standard XDG w Linuksie).
-Zmienna środowiskowa FA_MILIA_DATA_DIR pozwala wskazać inny katalog,
+- Linux: ~/.local/share/fa-milia/ (standard XDG).
+- Windows, program spakowany do .exe: folder „Fa milia - dane” obok pliku .exe
+  (wersja „przenośna”). Gdy tam nie da się zapisywać (np. Program Files),
+  awaryjnie %APPDATA%\\fa-milia.
+- Windows, uruchomienie z kodu źródłowego: %APPDATA%\\fa-milia.
+
+Zmienna środowiskowa FA_MILIA_DATA_DIR pozwala wskazać dowolny inny katalog,
 co przydaje się w testach i przy eksperymentach.
 """
 
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from fa_milia.config import APP_ID
 
+PORTABLE_FOLDER_NAME = "Fa milia - dane"
+
+
+def _is_writable(folder: Path) -> bool:
+    """Sprawdza w praktyce, czy w folderze da się utworzyć plik."""
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / ".test_zapisu"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _windows_appdata() -> Path:
+    appdata = os.environ.get("APPDATA")
+    base = Path(appdata) if appdata else Path.home() / "AppData" / "Roaming"
+    return base / APP_ID
+
 
 def default_data_root() -> Path:
-    """Zwraca ścieżkę katalogu danych (jeszcze go nie tworzy)."""
+    """Zwraca ścieżkę katalogu danych (w razie potrzeby sprawdza możliwość zapisu)."""
     override = os.environ.get("FA_MILIA_DATA_DIR")
     if override:
         return Path(override).expanduser()
 
-    # XDG_DATA_HOME zwykle nie jest ustawione – wtedy standard mówi
-    # o ~/.local/share.
+    if sys.platform == "win32":
+        # sys.frozen ustawia PyInstaller – oznacza „uruchomiono spakowany .exe”.
+        if getattr(sys, "frozen", False):
+            portable = Path(sys.executable).resolve().parent / PORTABLE_FOLDER_NAME
+            if _is_writable(portable):
+                return portable
+        return _windows_appdata()
+
+    # XDG_DATA_HOME zwykle nie jest ustawione – wtedy standard mówi o ~/.local/share.
     xdg = os.environ.get("XDG_DATA_HOME")
     base = Path(xdg) if xdg else Path.home() / ".local" / "share"
     return base / APP_ID

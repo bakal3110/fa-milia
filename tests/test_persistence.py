@@ -176,3 +176,22 @@ def test_savegame_stays_small_with_long_history(data_dir):
     assert loaded.state.round.remaining() == 30
     assert [p.score for p in loaded.state.players] == [0, 0, 0]
     assert loaded.state.rounds[0].categories[0].name == "R1 K0"  # treść pytań zachowana
+
+
+def test_restore_keeps_data_when_folder_cannot_be_moved(tmp_path, data_dir, monkeypatch):
+    backup = tmp_path / "kopia.zip"
+    create_backup(data_dir, backup)
+    (data_dir.categories / "moja.json").write_text("{}", encoding="utf-8")
+
+    original_rename = type(data_dir.root).rename
+
+    def locked_rename(self, target):
+        if self == data_dir.root:
+            raise PermissionError("plik w użyciu")
+        return original_rename(self, target)
+
+    monkeypatch.setattr(type(data_dir.root), "rename", locked_rename)
+    with pytest.raises(BackupError, match="w użyciu"):
+        restore_backup(data_dir, backup)
+    assert (data_dir.categories / "moja.json").exists()
+    assert not data_dir.root.with_name(data_dir.root.name + "-przywracanie").exists()

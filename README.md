@@ -4,35 +4,74 @@ Domowa gra w stylu teleturnieju Va banque (Jeopardy) do grania z rodziną:
 plansza na telewizorze lub rzutniku, prowadzący steruje grą z laptopa.
 Program działa w pełni offline.
 
-> Projekt powstaje etapami. Ten plik zostanie uzupełniony w etapie E6
-> (pakowanie, dźwięki, format importu, skróty klawiszowe).
+## Szybki start (Fedora KDE)
 
-## Wymagania
+```bash
+cd "Fa milia"
+./install.sh
+```
 
-- Fedora Linux (KDE Plasma), Python 3.12 lub nowszy
+Skrypt zbuduje program (za pierwszym razem kilka minut, potrzebny internet tylko do
+pobrania bibliotek) i doda **Fa milię** do menu KDE (kategoria *Gry*). Program startuje
+w pełnym ekranie i działa całkowicie offline.
 
-## Instalacja (tryb deweloperski)
+Odinstalowanie z menu: `./install.sh --odinstaluj` (dane użytkownika zostają).
+
+## Wymagania i zależności systemowe
+
+- Python 3.12 lub nowszy (Fedora ma go domyślnie).
+- Odtwarzanie dźwięku **nie wymaga** dodatkowych kodeków z RPM Fusion: biblioteka PySide6
+  z pip zawiera własne FFmpeg dla Qt Multimedia (obsługuje .wav, .ogg i .mp3).
+- Do budowania pliku wykonywalnego PyInstaller potrzebuje programu `objdump` z pakietu
+  `binutils` (na Fedorze zwykle już zainstalowany: `sudo dnf install binutils`).
+
+## Uruchomienie z kodu źródłowego (dla programisty)
 
 ```bash
 cd "Fa milia"
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
-```
-
-## Uruchomienie
-
-```bash
 .venv/bin/python -m fa_milia
 ```
 
-Przy pierwszym uruchomieniu program tworzy katalog danych
-`~/.local/share/fa-milia/` i dodaje 14 przykładowych kategorii oraz 3 pytania finałowe.
+Testy: `.venv/bin/pytest`
 
-## Testy
+## Gdzie są dane
+
+| System | Katalog danych |
+|---|---|
+| Linux | `~/.local/share/fa-milia/` |
+| Windows (plik .exe) | folder `Fa milia - dane` obok pliku .exe; gdy tam nie da się zapisywać (np. `Program Files`) – `%APPDATA%\fa-milia` |
+
+Przy pierwszym uruchomieniu program dodaje 14 przykładowych kategorii, 3 pytania finałowe
+i proste dźwięki. Zmienna środowiskowa `FA_MILIA_DATA_DIR` pozwala wskazać inny katalog.
+
+## Budowanie pliku wykonywalnego
+
+### Linux
 
 ```bash
-.venv/bin/pytest
+packaging/build_linux.sh          # jeden plik: dist/fa-milia
+packaging/build_linux.sh folder   # folder: dist/fa-milia/fa-milia
 ```
+
+`./install.sh` kopiuje `dist/fa-milia` do `~/.local/bin`, a ikonę i plik `.desktop` do
+katalogów menu KDE.
+
+### Windows
+
+PyInstaller nie potrafi zbudować pliku .exe na Linuksie – trzeba to zrobić na komputerze
+z Windows:
+
+1. Zainstaluj Python 3.12+ ze strony python.org (zaznacz *Add python.exe to PATH*).
+2. Skopiuj folder projektu na komputer z Windows (bez folderów `.venv`, `build`, `dist`).
+3. Uruchom `packaging\build_windows.bat` (dwuklik). Powstanie `dist\Fa milia.exe`.
+   Wariant „folder” (rzadziej oznaczany przez antywirusy): `packaging\build_windows.bat folder`.
+
+Plik .exe można skopiować w dowolne miejsce (także na pendrive) – dane programu trafią
+do folderu `Fa milia - dane` obok niego. Program nie jest podpisany cyfrowo, więc przy
+pierwszym uruchomieniu Windows może pokazać okno „System Windows ochronił ten komputer” –
+kliknij „Więcej informacji” → „Uruchom mimo to”.
 
 ## Skróty klawiszowe
 
@@ -141,6 +180,15 @@ Import / Eksport → „Utwórz kopię zapasową…” zapisuje wszystkie dane p
 pliku `.zip`. „Przywróć z kopii…” zastępuje obecne dane zawartością kopii; dotychczasowe
 dane są odkładane do katalogu `~/.local/share/fa-milia-przed-przywroceniem/`.
 
+## Rozwiązywanie problemów
+
+- **Brak dźwięku:** Ustawienia → Timer i dźwięk → „▶ Próbka”. Lista pod spodem pokazuje,
+  które pliki dźwięków zostały znalezione. Sprawdź też głośność systemu.
+- **Plansza nie otwiera się na telewizorze:** telewizor musi być ekranem *rozszerzonym*.
+  W Ustawieniach → Ekrany wybierz właściwy monitor („Pokaż nazwy na monitorach”).
+- **Skróty klawiszowe nie działają po starcie gry:** kliknij raz okno panelu prowadzącego
+  (na Waylandzie system nie zawsze przenosi fokus automatycznie).
+
 ## Struktura projektu
 
 - `fa_milia/core/` – logika i dane (bez Qt)
@@ -148,4 +196,6 @@ dane są odkładane do katalogu `~/.local/share/fa-milia-przed-przywroceniem/`.
 - `fa_milia/resources/` – ikona i przykładowe media
 - `tests/` – testy logiki (pytest)
 - `examples/przyklad_importu/` – przykładowy folder do przetestowania importu
-- `tools/generate_sample_media.py` – generator przykładowych flag, obrazków i dźwięków
+- `packaging/` – PyInstaller (`fa-milia.spec`), skrypty budowania, plik `.desktop`
+- `install.sh` – instalacja w menu KDE
+- `tools/generate_sample_media.py` – generator przykładowych flag, obrazków, dźwięków i ikon

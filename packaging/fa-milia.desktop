@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Fa milia
+GenericName=Rodzinny teleturniej
+Comment=Domowa gra w stylu teleturnieju Va banque
+Exec=@EXEC@
+Icon=fa-milia
+Terminal=false
+Categories=Game;
+Keywords=gra;teleturniej;quiz;va banque;jeopardy;
+StartupWMClass=fa-milia

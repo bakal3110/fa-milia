@@ -8,7 +8,8 @@ Domowa gra w stylu Va banque (Jeopardy) w Pythonie i PySide6. Fedora KDE, dwa ek
 - Właściciel projektu uczy się Pythona: pisz czytelnie, komentuj nieoczywiste fragmenty, unikaj „sprytnych” skrótów.
 - Logika gry (`core/`) nie importuje niczego z Qt. Interfejs (`ui/`) korzysta z logiki, nie odwrotnie.
 - Żadnego kodu sieciowego.
-- Dane użytkownika tylko w `~/.local/share/fa-milia/`.
+- Dane użytkownika tylko w katalogu danych: Linux `~/.local/share/fa-milia/`, Windows (.exe) folder `Fa milia - dane` obok programu (zapasowo `%APPDATA%\fa-milia`). Ścieżki ustala `fa_milia/core/paths.py`.
+- Program ma działać na Linuksie (KDE) i Windows – bez kodu zależnego od jednego systemu poza `paths.py` i `app.py`.
 - Brakujące pliki dźwięków lub mediów nigdy nie powodują błędu programu.
 - Format tekstowy importu jest przeznaczony dla osób nietechnicznych: każda zmiana w nim musi pozostać prosta i być opisana w `JAK_DODAC_PYTANIA.txt`.
 

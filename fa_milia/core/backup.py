@@ -62,8 +62,15 @@ def restore_backup(data_dir: DataDir, source: Path) -> Path:
 
     (staging / MANIFEST).unlink(missing_ok=True)
     shutil.rmtree(previous, ignore_errors=True)
-    if root.exists():
-        root.rename(previous)
+    try:
+        if root.exists():
+            root.rename(previous)
+    except OSError as error:
+        # Na Windows nie da się przenieść folderu, w którym jakiś plik jest otwarty
+        # (np. właśnie odtwarzany dźwięk). Dane zostają nietknięte.
+        shutil.rmtree(staging, ignore_errors=True)
+        raise BackupError("Nie udało się podmienić danych – któryś plik jest w użyciu. "
+                          "Uruchom program ponownie i od razu przywróć kopię.") from error
     staging.rename(root)
     data_dir.ensure()
     return previous

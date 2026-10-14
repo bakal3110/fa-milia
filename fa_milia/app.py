@@ -1,5 +1,6 @@
 """Uruchomienie aplikacji: przygotowanie danych i otwarcie głównego okna."""
 
+import os
 import sys
 
 from PySide6.QtGui import QIcon
@@ -17,12 +18,27 @@ from fa_milia.resource_paths import resource_path
 from fa_milia.ui.main_window import MainWindow
 
 
+def _prepare_environment() -> None:
+    """Ustawienia, które muszą zadziałać przed utworzeniem QApplication."""
+    # Wyciszamy komunikaty diagnostyczne FFmpeg wypisywane przy każdym dźwięku.
+    os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.ffmpeg*=false")
+    if sys.platform == "win32":
+        # Własny identyfikator aplikacji – dzięki niemu pasek zadań Windows
+        # pokazuje ikonę Fa milii zamiast ikony Pythona.
+        import ctypes  # import tylko na Windows
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FaMilia.Gra")
+
+
 def main() -> int:
+    _prepare_environment()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setDesktopFileName(APP_ID)  # łączy okno z plikiem .desktop (ikona w KDE)
     app.setStyle("Fusion")  # jednolity wygląd niezależnie od motywu systemu
-    app.setWindowIcon(QIcon(str(resource_path("icon.svg"))))
+    icon = QIcon(str(resource_path("icon.svg")))
+    icon.addFile(str(resource_path("icon.png")))  # zapasowo, gdyby zabrakło obsługi SVG
+    app.setWindowIcon(icon)
 
     data_dir = DataDir(default_data_root())
     data_dir.ensure()

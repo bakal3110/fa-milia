@@ -15,6 +15,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPolygonF
+from PySide6.QtSvg import QSvgRenderer
 
 RESOURCES = Path(__file__).resolve().parent.parent / "fa_milia" / "resources"
 OUTPUT = RESOURCES / "sample_media"
@@ -217,6 +218,16 @@ def default_sounds() -> dict[str, list[float]]:
     }
 
 
+def render_icon(size: int) -> QImage:
+    """Rysuje ikonę programu (icon.svg) w podanym rozmiarze – do pliku .png/.ico."""
+    image = QImage(size, size, QImage.Format.Format_ARGB32)
+    image.fill(QColor(0, 0, 0, 0))  # przezroczyste tło
+    painter = QPainter(image)
+    QSvgRenderer(str(RESOURCES / "icon.svg")).render(painter)
+    painter.end()
+    return image
+
+
 def main() -> None:
     app = QGuiApplication(sys.argv)  # potrzebne do rysowania  # noqa: F841
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -236,6 +247,10 @@ def main() -> None:
     save_wav(OUTPUT / "dzwiek_wlazl_kotek.wav", melody(WLAZL_KOTEK, beat=0.38))
     save_wav(OUTPUT / "dzwiek_panie_janie.wav", melody(PANIE_JANIE, beat=0.38))
     save_wav(OUTPUT / "dzwiek_siedem_sygnalow.wav", beeps(7, 0.12, 0.13))
+    # Ikony: .png (Linux, okna) i .ico (Windows – ikona pliku .exe).
+    render_icon(256).save(str(RESOURCES / "icon.png"))
+    render_icon(256).save(str(RESOURCES / "icon.ico"))
+
     EXAMPLE_OUTPUT.mkdir(parents=True, exist_ok=True)
     shapes_example().save(str(EXAMPLE_OUTPUT / "kolory_2.png"))
 
