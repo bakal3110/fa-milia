@@ -232,8 +232,11 @@ class SettingsDialog(QDialog):
         timer_group = QGroupBox("Timer")
         timer_form = QFormLayout(timer_group)
         timer_form.addRow(self._timer_enabled)
-        timer_form.addRow("Czas na zwykłe pytanie i bonus:", self._question_seconds)
+        timer_form.addRow("Czas na zwykłe pytanie:", self._question_seconds)
         timer_form.addRow("Czas na pytanie finałowe:", self._final_seconds)
+        bonus_note = QLabel("Pytania bonusowe są zawsze bez timera.")
+        bonus_note.setStyleSheet("color: gray;")
+        timer_form.addRow(bonus_note)
 
         self._volume = QSlider(Qt.Orientation.Horizontal)
         self._volume.setRange(0, 100)

@@ -67,8 +67,8 @@ przytrzymaniu przycisku „Pokaż mi”.
 - **Finał** (przełącznik „Finał” przy wyborze kategorii): grają zawodnicy z wynikiem
   większym niż 0. Najpierw kategoria, potem stawki (od 0 do wyniku), pytanie i ocena.
   Gdy nikt nie ma punktów, finał jest pomijany.
-- **Timer** (Ustawienia → Timer i dźwięk): rusza po pokazaniu pytania, znika po odsłonięciu
-  odpowiedzi. Prowadzący może go wstrzymać i wznowić (klawisz P) lub uruchomić od nowa.
+- **Timer** (Ustawienia → Timer i dźwięk): rusza po pokazaniu pytania (z wyjątkiem pytań
+  bonusowych, które są bez timera), znika po odsłonięciu odpowiedzi. Prowadzący może go wstrzymać i wznowić (klawisz P) lub uruchomić od nowa.
 
 ## Dźwięki
 

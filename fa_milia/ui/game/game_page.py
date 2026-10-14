@@ -224,7 +224,9 @@ class GamePage(QWidget):
                 self._usage.mark_final(state.final.question.id)
             if state.current_question().kind == ContentKind.SOUND:
                 self._play_question_sound()
-            if self._settings.timer_enabled:
+            # Pytanie bonusowe jest bez timera – odpowiada jeden zawodnik o własną stawkę.
+            is_bonus = state.phase == Phase.QUESTION and state.current.is_bonus
+            if self._settings.timer_enabled and not is_bonus:
                 final = state.phase == Phase.FINAL_QUESTION
                 seconds = self._settings.final_seconds if final else self._settings.question_seconds
                 self._timer.start(seconds)
