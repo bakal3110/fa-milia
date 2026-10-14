@@ -47,7 +47,7 @@ SOUND_EXTENSIONS = (".mp3", ".wav", ".ogg")
 # --- Skróty klawiszowe (wyświetlane w Ustawieniach i opisane w README) -----
 
 SHORTCUTS = [
-    ("Spacja", "Odsłoń odpowiedź / wróć do planszy / dalej"),
+    ("Spacja", "Odsłoń kategorię (początek rundy) / odsłoń odpowiedź / wróć do planszy / dalej"),
     ("Esc", "Wstecz; w pytaniu zamyka pytanie; na planszy – menu (z potwierdzeniem)"),
     ("Ctrl+Z", "Cofnij ostatnią akcję w grze"),
     ("P", "Pauza / wznowienie timera"),

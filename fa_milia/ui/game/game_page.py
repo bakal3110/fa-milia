@@ -28,6 +28,8 @@ from fa_milia.ui.screens import choose_game_screen
 from fa_milia.ui.sound_effects import SoundEffects
 
 OVERLAY_MAX_HEIGHT = 0.65  # nakładka zajmuje najwyżej 65% wysokości ekranu
+BOARD_FILL_MS = 2500  # czas pojawiania się pól na początku rundy
+BOARD_FILL_FADE_MS = 500  # muzyka board_fill cichnie przez ostatnie pół sekundy
 
 
 class GamePage(QWidget):
@@ -42,13 +44,15 @@ class GamePage(QWidget):
         self._settings = settings
         self._controller = GameController(self)
         self._audio = AudioPlayer(self)  # dźwięk w pytaniu dźwiękowym
-        self._effects = SoundEffects(library.data_dir.sounds, self)  # bonus, koniec czasu, …
+        self._effects = SoundEffects(library.data_dir.sounds, self)  # premia, muzyka, …
         self._timer = GameTimer(self)
         self._game_window = GameWindow()
         self._game_screen_monitor: QScreen | None = None  # None = tryb jednoekranowy
         # Klucz ostatnio pokazanego pytania – żeby dźwięk pytania i timer
         # ruszyły raz przy otwarciu, a nie przy każdym odświeżeniu.
         self._shown_question_key: tuple | None = None
+        # Rundy (indeksy), dla których już pokazaliśmy pojawianie się planszy.
+        self._filled_rounds: set[int] = set()
 
         self._screen = GameScreen()
         self._host = HostPanel(self._controller, self._timer)
@@ -62,8 +66,9 @@ class GamePage(QWidget):
         self._host.hide_requested.connect(self.toggle_overlay)
         self._controller.state_changed.connect(self._refresh)
         self._controller.sound.connect(self._effects.play)
+        self._controller.answer_marked.connect(self._on_answer_marked)
         self._timer.tick.connect(self._update_timer_display)
-        self._timer.expired.connect(lambda: self._effects.play("koniec_czasu"))
+        self._timer.expired.connect(self._on_timer_expired)
         QGuiApplication.instance().screenRemoved.connect(self._on_screen_removed)
 
         # Skróty: na tej stronie (okno prowadzącego) i w oknie ekranu gry.
@@ -118,6 +123,7 @@ class GamePage(QWidget):
 
     def _prepare_screens(self) -> None:
         self._shown_question_key = None
+        self._filled_rounds = set()
         host_monitor = self.window().screen()
         choice = choose_game_screen(self._settings, host_monitor)
         self._set_mode(choice.screen)
@@ -208,6 +214,7 @@ class GamePage(QWidget):
         # Liczba widocznych przycisków się zmienia, więc i wysokość panelu.
         # singleShot(0, …) – wykonaj, gdy Qt skończy bieżące przeliczanie układu.
         QTimer.singleShot(0, self._position_overlay)
+        self._maybe_play_board_fill(state)
 
         key = self._question_key(state)
         if key is None:
@@ -215,6 +222,7 @@ class GamePage(QWidget):
             self._shown_question_key = None
             self._audio.stop()
             self._timer.stop()
+            self._effects.fade_out("final_countdown")
             return
         if key != self._shown_question_key:
             # Właśnie pokazało się nowe pytanie.
@@ -224,14 +232,49 @@ class GamePage(QWidget):
                 self._usage.mark_final(state.final.question.id)
             if state.current_question().kind == ContentKind.SOUND:
                 self._play_question_sound()
-            # Pytanie bonusowe jest bez timera – odpowiada jeden zawodnik o własną stawkę.
-            is_bonus = state.phase == Phase.QUESTION and state.current.is_bonus
-            if self._settings.timer_enabled and not is_bonus:
-                final = state.phase == Phase.FINAL_QUESTION
-                seconds = self._settings.final_seconds if final else self._settings.question_seconds
-                self._timer.start(seconds)
+            if state.phase == Phase.FINAL_QUESTION:
+                # Finał ma timer zawsze, a w tle gra muzyka finałowa.
+                self._timer.start(self._settings.final_seconds)
+                self._effects.play("final_countdown")
+            elif self._settings.timer_enabled and not state.current.is_bonus:
+                # Pytanie z premią jest bez timera – odpowiada jeden zawodnik o własną stawkę.
+                self._timer.start(self._settings.question_seconds)
         if state.is_revealed():
             self._timer.stop()  # po odsłonięciu odpowiedzi timer znika
+            self._effects.fade_out("final_countdown")
+
+    def _maybe_play_board_fill(self, state: GameState) -> None:
+        """Początek rundy: pola pojawiają się w grupach, w tle gra board_fill."""
+        if state.phase != Phase.BOARD or state.round.revealed_categories > 0:
+            return
+        if state.round_index in self._filled_rounds:
+            return
+        self._filled_rounds.add(state.round_index)
+        self._screen.play_board_fill(BOARD_FILL_MS)
+        self._effects.play("board_fill")
+        # Muzyka ma trwać tylko tyle, co animacja – pod koniec łagodnie ją wyciszamy.
+        QTimer.singleShot(BOARD_FILL_MS - BOARD_FILL_FADE_MS,
+                          lambda: self._effects.fade_out("board_fill", BOARD_FILL_FADE_MS))
+
+    def _on_timer_expired(self) -> None:
+        self._effects.fade_out("final_countdown", 300)
+        self._effects.play("time_up")
+        state = self._controller.state
+        # W zwykłym pytaniu (opcjonalnie) od razu pokazujemy odpowiedź.
+        # W finale odpowiedź odsłania prowadzący – zawodnicy kończą zapisywać.
+        if (state is not None and state.phase == Phase.QUESTION and not state.current.revealed
+                and self._settings.reveal_on_timeout):
+            self._controller.reveal_answer("Koniec czasu – odsłonięcie odpowiedzi")
+
+    def _on_answer_marked(self, correct: bool) -> None:
+        """Zła odpowiedź: wstrzymany timer rusza dalej (odpowiada następna osoba).
+
+        Dobra odpowiedź pokazuje odpowiedź (robi to logika gry), a timer znika.
+        """
+        if not correct and self._timer.active and not self._timer.running \
+                and self._timer.remaining() > 0:
+            self._timer.resume()
+            self._host.show_message("Zła odpowiedź – timer wznowiony.")
 
     def _autosave(self, state: GameState) -> None:
         """Zapis po każdej akcji. Zakończona gra nie jest już potrzebna – kasujemy zapis."""

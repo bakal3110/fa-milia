@@ -65,8 +65,10 @@ class RoundState:
     categories: list[Category]
     # used[kolumna][rząd - 1] == True, gdy pole zostało już wykorzystane.
     used: list[list[bool]] = field(default_factory=list)
-    # Położenie pól bonusowych: lista (kolumna, rząd).
+    # Położenie pól z premią (bonusów): lista (kolumna, rząd).
     bonuses: list[tuple[int, int]] = field(default_factory=list)
+    # Ile kategorii (od lewej) prowadzący już odsłonił na początku rundy.
+    revealed_categories: int = 0
 
     def __post_init__(self) -> None:
         # __post_init__ wywołuje się automatycznie zaraz po __init__ z dataclass.
@@ -91,6 +93,15 @@ class RoundState:
     def remaining(self) -> int:
         return sum(not used for column in self.used for used in column)
 
+    def all_categories_revealed(self) -> bool:
+        return self.revealed_categories >= len(self.categories)
+
+    def next_hidden_category(self) -> Category | None:
+        """Kategoria, którą prowadzący odsłoni jako następną (od lewej do prawej)."""
+        if self.all_categories_revealed():
+            return None
+        return self.categories[self.revealed_categories]
+
     def is_finished(self) -> bool:
         return self.remaining() == 0
 
@@ -101,6 +112,7 @@ class RoundState:
             # wskazywałaby na tę samą listę i zmieniałaby się razem ze stanem gry.
             "used": [list(column) for column in self.used],
             "bonuses": [list(tile) for tile in self.bonuses],
+            "revealed_categories": self.revealed_categories,
         }
         if content:
             data["categories"] = [c.to_dict() for c in self.categories]
@@ -116,6 +128,8 @@ class RoundState:
             categories=categories,
             used=[list(column) for column in data["used"]],
             bonuses=[tuple(tile) for tile in data.get("bonuses", [])],
+            # Starsze zapisy nie mają tego pola – wtedy wszystkie kategorie są odsłonięte.
+            revealed_categories=data.get("revealed_categories", len(categories)),
         )
 
 
@@ -319,8 +333,19 @@ class GameState:
 
     # --- Akcje: plansza i pytania -----------------------------------------
 
+    def reveal_next_category(self) -> Category:
+        """Początek rundy: odsłania nazwę kolejnej kategorii (od lewej). Zwraca ją."""
+        self._require_phase(Phase.BOARD)
+        category = self.round.next_hidden_category()
+        if category is None:
+            raise GameError("Wszystkie kategorie są już odsłonięte.")
+        self.round.revealed_categories += 1
+        return category
+
     def open_tile(self, column: int, row: int) -> None:
         self._require_phase(Phase.BOARD)
+        if not self.round.all_categories_revealed():
+            raise GameError("Najpierw odsłoń wszystkie kategorie (spacja).")
         if not (0 <= column < len(self.round.categories) and 1 <= row <= ROW_COUNT):
             raise GameError("Nie ma takiego pola.")
         if self.round.is_used(column, row):
@@ -333,7 +358,7 @@ class GameState:
             self.phase = Phase.QUESTION
 
     def set_bonus_wager(self, player_index: int, wager: int) -> None:
-        """Bonus: prowadzący wskazuje zawodnika i jego stawkę."""
+        """Premia: prowadzący wskazuje zawodnika i jego stawkę."""
         self._require_phase(Phase.BONUS)
         self._check_player(player_index)
         limit = self.max_bonus_wager(player_index)
@@ -343,7 +368,7 @@ class GameState:
         self.current.value = wager
 
     def show_bonus_question(self) -> None:
-        """Bonus: po ustaleniu stawki przechodzimy do pytania."""
+        """Premia: po ustaleniu stawki przechodzimy do pytania."""
         self._require_phase(Phase.BONUS)
         if self.current.bonus_player is None:
             raise GameError("Najpierw wybierz zawodnika i stawkę.")
@@ -375,6 +400,9 @@ class GameState:
             self.final.marks[player_index] = correct
         else:
             self.current.marks[player_index] = correct
+            if correct:
+                # Dobra odpowiedź w zwykłym pytaniu (i premii) od razu pokazuje odpowiedź.
+                self.current.revealed = True
         if correct:
             self.last_correct = player_index
         return change

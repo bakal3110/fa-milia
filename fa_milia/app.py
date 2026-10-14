@@ -1,8 +1,8 @@
 """Uruchomienie aplikacji: przygotowanie danych i otwarcie głównego okna."""
 
-import os
 import sys
 
+from PySide6.QtCore import QLoggingCategory
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -21,7 +21,9 @@ from fa_milia.ui.main_window import MainWindow
 def _prepare_environment() -> None:
     """Ustawienia, które muszą zadziałać przed utworzeniem QApplication."""
     # Wyciszamy komunikaty diagnostyczne FFmpeg wypisywane przy każdym dźwięku.
-    os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.ffmpeg*=false")
+    # (Zmienna środowiskowa QT_LOGGING_RULES nie wystarcza – Qt czyta ją, zanim
+    # dojdziemy do tego miejsca, bo moduły Qt są już zaimportowane.)
+    QLoggingCategory.setFilterRules("qt.multimedia.ffmpeg*=false")
     if sys.platform == "win32":
         # Własny identyfikator aplikacji – dzięki niemu pasek zadań Windows
         # pokazuje ikonę Fa milii zamiast ikony Pythona.

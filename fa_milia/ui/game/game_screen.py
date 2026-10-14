@@ -1,7 +1,7 @@
 """Ekran gry – to, co widzą zawodnicy (telewizor/rzutnik).
 
 Ten ekran NIGDY nie pokazuje odpowiedzi przed jej odsłonięciem ani położenia
-bonusów. Wszystkie informacje tylko dla prowadzącego trafiają do HostPanel.
+pól z premią. Wszystkie informacje tylko dla prowadzącego trafiają do HostPanel.
 """
 
 from collections.abc import Callable
@@ -162,7 +162,7 @@ class QuestionView(ClickableView):
 
 
 class SplashView(ClickableView):
-    """Duży napis z dwoma liniami pod spodem – ekran BONUS i ekran kategorii finału."""
+    """Duży napis z dwoma liniami pod spodem – ekran PREMIA i ekran kategorii finału."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -249,7 +249,7 @@ class GameScreen(QWidget):
     """Przełącza widoki (plansza / pytanie / ekrany specjalne / wyniki) zależnie od stanu."""
 
     tile_clicked = Signal(int, int)
-    advance_requested = Signal()  # kliknięcie w pytanie, ekran BONUS lub tabelę wyników
+    advance_requested = Signal()  # kliknięcie w pytanie, ekran PREMIA, tabelę wyników lub planszę w trakcie odsłaniania
     replay_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -270,6 +270,7 @@ class GameScreen(QWidget):
         layout.addWidget(self._stack)
 
         self._board.tile_clicked.connect(self.tile_clicked)
+        self._board.advance_requested.connect(self.advance_requested)
         self._question.clicked.connect(self.advance_requested)
         self._question.replay_requested.connect(self.replay_requested)
         self._splash.clicked.connect(self.advance_requested)
@@ -283,6 +284,10 @@ class GameScreen(QWidget):
         for view in (self._question, self._splash):
             for label in view.findChildren(FitTextLabel):
                 label.set_scale(scale)
+
+    def play_board_fill(self, duration_ms: int) -> None:
+        """Początek rundy: pola planszy pojawiają się losowo w małych grupach."""
+        self._board.play_fill_animation(duration_ms)
 
     def set_timer(self, remaining: float | None, total: float) -> None:
         """remaining=None ukrywa pasek timera."""
@@ -313,7 +318,7 @@ class GameScreen(QWidget):
                 else:
                     name = state.players[current.bonus_player].name
                     detail = f"{name} gra o {format_points(current.value)}"
-                self._splash.show_splash("BONUS", state.current_category().name.upper(), detail)
+                self._splash.show_splash("PREMIA", state.current_category().name.upper(), detail)
                 self._stack.setCurrentWidget(self._splash)
 
             case Phase.QUESTION:
@@ -322,7 +327,7 @@ class GameScreen(QWidget):
                 category = state.current_category().name.upper()
                 if current.is_bonus:
                     player = state.players[current.bonus_player].name
-                    header = f"BONUS · {category} · {player} gra o {format_points(current.value)}"
+                    header = f"PREMIA · {category} · {player} gra o {format_points(current.value)}"
                 else:
                     header = f"{category}  ·  {format_points(current.value)}"
                 self._show_question(header, question, media_path, current.revealed)

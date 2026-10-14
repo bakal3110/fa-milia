@@ -77,7 +77,7 @@ kliknij „Więcej informacji” → „Uruchom mimo to”.
 
 | Klawisz | Działanie |
 |---|---|
-| Spacja | odsłoń odpowiedź / wróć do planszy / dalej |
+| Spacja | odsłoń kategorię (początek rundy) / odsłoń odpowiedź / wróć do planszy / dalej |
 | Esc | wstecz; w pytaniu zamyka pytanie; na planszy – menu (z potwierdzeniem) |
 | Ctrl+Z | cofnij ostatnią akcję w grze |
 | P | pauza / wznowienie timera |
@@ -97,36 +97,55 @@ Przy jednym monitorze program działa w trybie jednoekranowym: panel prowadzące
 nakładką na dole ekranu (F2 ukrywa/pokazuje), a odpowiedź widać dopiero po
 przytrzymaniu przycisku „Pokaż mi”.
 
-## Zasady: bonusy, finał, timer
+## Zasady: początek rundy, premie, finał, timer
 
-- **Bonusy:** w każdej rundzie 2 ukryte pola bonusowe (nigdy w pierwszym rzędzie).
+- **Początek rundy:** pola planszy pojawiają się losowo w małych grupach (ok. 2,5 s,
+  w tle `board_fill`), a nazwy kategorii są zasłonięte napisem „Fa milia”. Prowadzący
+  przedstawia kategorie od lewej do prawej – w panelu widzi nazwę następnej, a spacja
+  (albo kliknięcie w planszę) odsłania ją zawodnikom. Pola można wybierać dopiero po
+  odsłonięciu wszystkich kategorii. Tak samo w rundzie 1 i 2.
+- **Premie:** w każdej rundzie 2 ukryte pola z premią (nigdy w pierwszym rzędzie).
   Po trafieniu prowadzący wybiera zawodnika i stawkę: od 0 do większej z wartości
-  (wynik zawodnika, najwyższe pole rundy). Prowadzący może podejrzeć położenie bonusów
-  w panelu („Pokaż mi położenie bonusów”, domyślnie wyłączone).
+  (wynik zawodnika, najwyższe pole rundy). Pytanie z premią jest bez timera. Prowadzący
+  może podejrzeć położenie premii w panelu („Pokaż mi położenie premii”, domyślnie wyłączone).
+- **Ocena odpowiedzi:** dobra odpowiedź od razu pokazuje odpowiedź na ekranie (dźwięk
+  `good_answer`) i wyłącza timer. Zła odpowiedź wznawia wstrzymany timer – może odpowiadać
+  następna osoba.
+- **Timer** (Ustawienia → Timer i dźwięk): w zwykłych pytaniach rusza po pokazaniu pytania;
+  klawisz P wstrzymuje go i wznawia (np. gdy ktoś zgłasza się do odpowiedzi). Po upływie
+  czasu gra `time_up` i – jeśli włączone „Po upływie czasu pokaż odpowiedź” – odpowiedź
+  pojawia się na ekranie.
 - **Finał** (przełącznik „Finał” przy wyborze kategorii): grają zawodnicy z wynikiem
   większym niż 0. Najpierw kategoria, potem stawki (od 0 do wyniku), pytanie i ocena.
-  Gdy nikt nie ma punktów, finał jest pomijany.
-- **Timer** (Ustawienia → Timer i dźwięk): rusza po pokazaniu pytania (z wyjątkiem pytań
-  bonusowych, które są bez timera), znika po odsłonięciu odpowiedzi. Prowadzący może go wstrzymać i wznowić (klawisz P) lub uruchomić od nowa.
+  Pytanie finałowe ma timer zawsze (domyślnie 30 s) i muzykę `final_countdown`; po upływie
+  czasu odpowiedź odsłania prowadzący. Gdy nikt nie ma punktów, finał jest pomijany.
 
-## Dźwięki
+## Dźwięki i muzyka
 
-Dźwięki są w folderze `~/.local/share/fa-milia/sounds/` (Ustawienia → Timer i dźwięk →
-„Otwórz folder dźwięków”). Przy pierwszym uruchomieniu program dodaje tam proste dźwięki
-domyślne – możesz je podmienić własnymi plikami .wav, .ogg lub .mp3 o nazwach:
+**Gdzie wrzucić pliki:** do folderu `sounds` w katalogu danych programu:
+
+- Linux: `~/.local/share/fa-milia/sounds/`
+- Windows: `Fa milia - dane\sounds\` obok pliku `Fa milia.exe`
+
+Folder otworzysz też z programu: Ustawienia → Timer i dźwięk → „Otwórz folder dźwięków”.
+Obsługiwane formaty: .mp3, .ogg, .wav. Nazwy plików:
 
 | Plik | Kiedy gra |
 |---|---|
-| `bonus` | trafienie na pole bonusowe |
-| `koniec_czasu` | upływ czasu timera |
-| `dobra_odpowiedz` | oznaczenie dobrej odpowiedzi |
-| `zla_odpowiedz` | oznaczenie złej odpowiedzi |
-| `start_rundy` | początek rundy |
-| `final` | początek finału |
+| `board_fill` | pojawianie się planszy na początku rundy (ok. 2,5 s, potem wyciszenie) |
+| `premia` | trafienie na pole z premią |
+| `good_answer` | dobra odpowiedź |
+| `zla_odpowiedz` | zła odpowiedź |
+| `time_up` | upływ czasu timera |
+| `final` | początek finału (ekran z kategorią) |
+| `final_countdown` | muzyka w trakcie pytania finałowego (ok. 30 s) |
 | `zwyciezca` | ekran zwycięzcy |
 
-Brak pliku nie jest błędem – program po prostu nie zagra dźwięku. Szczegóły są w pliku
-`INSTRUKCJA.txt` w tym folderze.
+Przy pierwszym uruchomieniu program dodaje proste dźwięki domyślne (.wav) – plik .mp3
+o tej samej nazwie ma pierwszeństwo, więc wystarczy dorzucić własne. Starsze nazwy
+(`bonus`, `koniec_czasu`, `dobra_odpowiedz`, `start_rundy`) nadal działają, gdy brak pliku
+o nowej nazwie. Brak pliku nie jest błędem – program po prostu nie zagra dźwięku.
+Lista znalezionych plików: Ustawienia → Timer i dźwięk.
 
 ## Zapis gry, pamięć wykorzystania, zestawy
 

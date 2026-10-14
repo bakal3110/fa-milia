@@ -16,7 +16,8 @@ from fa_milia.ui.game.widgets import format_points
 class GameController(QObject):
     state_changed = Signal()
     message = Signal(str)  # komunikat dla prowadzącego (błąd, „Cofnięto: …”)
-    sound = Signal(str)  # nazwa dźwięku efektu do odtworzenia (np. "bonus")
+    sound = Signal(str)  # nazwa dźwięku efektu do odtworzenia (np. "premia")
+    answer_marked = Signal(bool)  # prowadzący ocenił odpowiedź w zwykłym pytaniu (dobrze?)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -31,7 +32,6 @@ class GameController(QObject):
         self._history = GameHistory(state)
         self._show_scores = False
         self.state_changed.emit()
-        self.sound.emit("start_rundy")
 
     def resume(self, history: GameHistory) -> None:
         """Wznawia zapisaną grę (razem z historią do cofania)."""
@@ -65,24 +65,30 @@ class GameController(QObject):
 
     # --- Akcje: plansza i pytania -----------------------------------------
 
+    def reveal_next_category(self) -> None:
+        category = self.state.round.next_hidden_category()
+        if category is not None:
+            self._apply(f"Odsłonięcie kategorii: {category.name}",
+                        lambda s: s.reveal_next_category())
+
     def open_tile(self, column: int, row: int) -> None:
         state = self.state
         name = state.round.categories[column].name
         value = format_points(state.round.value(row))
         if self._apply(f"Otwarcie pola: {name} za {value}", lambda s: s.open_tile(column, row)):
             if self.state.phase == Phase.BONUS:
-                self.sound.emit("bonus")
+                self.sound.emit("premia")
 
     def set_bonus_wager(self, player_index: int, wager: int) -> None:
         name = self.state.players[player_index].name
-        self._apply(f"Bonus: {name} gra o {format_points(wager)}",
+        self._apply(f"Premia: {name} gra o {format_points(wager)}",
                     lambda s: s.set_bonus_wager(player_index, wager))
 
     def show_bonus_question(self) -> None:
         self._apply("Pytanie bonusowe", lambda s: s.show_bonus_question())
 
-    def reveal_answer(self) -> None:
-        self._apply("Odsłonięcie odpowiedzi", lambda s: s.reveal_answer())
+    def reveal_answer(self, label: str = "Odsłonięcie odpowiedzi") -> None:
+        self._apply(label, lambda s: s.reveal_answer())
 
     def mark(self, player_index: int, correct: bool) -> None:
         state = self.state
@@ -93,7 +99,9 @@ class GameController(QObject):
         change = value if correct else -value
         if self._apply(f"{name} {format_points(change, signed=True)}",
                        lambda s: s.mark(player_index, correct)):
-            self.sound.emit("dobra_odpowiedz" if correct else "zla_odpowiedz")
+            self.sound.emit("good_answer" if correct else "zla_odpowiedz")
+            if self.state.phase == Phase.QUESTION:
+                self.answer_marked.emit(correct)
 
     def close_question(self) -> None:
         self._apply("Powrót do planszy", lambda s: s.close_question())
@@ -108,8 +116,6 @@ class GameController(QObject):
         if not self._apply("Następny etap gry", lambda s: s.next_round()):
             return
         match self.state.phase:
-            case Phase.BOARD:
-                self.sound.emit("start_rundy")
             case Phase.FINAL_WAGERS:
                 self.sound.emit("final")
             case Phase.FINISHED:
@@ -140,9 +146,12 @@ class GameController(QObject):
             self.toggle_scores()
             return
         match state.phase:
+            case Phase.BOARD:
+                if not state.round.all_categories_revealed():
+                    self.reveal_next_category()
             case Phase.BONUS:
                 if state.current.bonus_player is None:
-                    self.message.emit("Bonus: wybierz w panelu zawodnika i wpisz stawkę.")
+                    self.message.emit("Premia: wybierz w panelu zawodnika i wpisz stawkę.")
                 else:
                     self.show_bonus_question()
             case Phase.QUESTION:

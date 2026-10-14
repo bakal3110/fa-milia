@@ -1,4 +1,4 @@
-"""Odtwarzanie dźwięków efektów z folderu sounds/ (bonus, koniec czasu, …)."""
+"""Odtwarzanie dźwięków efektów z folderu sounds/ (premia, koniec czasu, muzyka, …)."""
 
 from pathlib import Path
 
@@ -14,7 +14,7 @@ class SoundEffects(QObject):
         self._sounds_dir = sounds_dir
         self._volume = 0.8
         # Osobny odtwarzacz dla każdego efektu – dzięki temu np. „dobra odpowiedź”
-        # nie urywa dźwięku „bonus”, jeśli zagrają tuż po sobie.
+        # nie urywa dźwięku „premia”, jeśli zagrają tuż po sobie.
         self._players: dict[str, AudioPlayer] = {}
 
     def set_volume(self, volume: float) -> None:
@@ -33,6 +33,15 @@ class SoundEffects(QObject):
             player.set_volume(self._volume)
             self._players[name] = player
         self._players[name].play(path)
+
+    def fade_out(self, name: str, duration_ms: int = 600) -> None:
+        """Łagodnie wycisza dany efekt/muzykę, jeśli właśnie gra."""
+        if name in self._players:
+            self._players[name].fade_out(duration_ms)
+
+    def stop(self, name: str) -> None:
+        if name in self._players:
+            self._players[name].stop()
 
     def stop_all(self) -> None:
         for player in self._players.values():

@@ -204,11 +204,11 @@ def default_sounds() -> dict[str, list[float]]:
         bonus += tone(frequency, 0.09, 0.45)
     bonus += mix(tone(C5, 0.9, 0.5), tone(E5, 0.9, 0.5), tone(G5, 0.9, 0.5), tone(C6, 0.9, 0.5))
     return {
-        "bonus": bonus,
-        "koniec_czasu": buzz(150, 0.35) + silence(0.08) + buzz(150, 0.6),
-        "dobra_odpowiedz": tone(E5, 0.12) + tone(A5, 0.35),
+        "premia": bonus,
+        "time_up": buzz(150, 0.35) + silence(0.08) + buzz(150, 0.6),
+        "good_answer": tone(E5, 0.12) + tone(A5, 0.35),
         "zla_odpowiedz": tone(note(-10), 0.18) + tone(note(-14), 0.45),
-        "start_rundy": tone(G4, 0.12) + tone(C5, 0.12) + tone(E5, 0.12) + tone(G5, 0.5),
+        "board_fill": tone(G4, 0.12) + tone(C5, 0.12) + tone(E5, 0.12) + tone(G5, 0.5),
         "final": (tone(C4, 0.35) + tone(E4, 0.35) + tone(G4, 0.35)
                   + mix(tone(C4, 1.2), tone(E4, 1.2), tone(G4, 1.2), tone(C5, 1.2))),
         "zwyciezca": (tone(C5, 0.15) + silence(0.03) + tone(C5, 0.15) + silence(0.03)
@@ -255,6 +255,8 @@ def main() -> None:
     shapes_example().save(str(EXAMPLE_OUTPUT / "kolory_2.png"))
 
     SOUNDS_OUTPUT.mkdir(parents=True, exist_ok=True)
+    for old_file in SOUNDS_OUTPUT.glob("*.wav"):
+        old_file.unlink()  # usuwamy pliki o starych nazwach
     for name, samples in default_sounds().items():
         save_wav(SOUNDS_OUTPUT / f"{name}.wav", samples)
     print(f"Zapisano pliki w {OUTPUT} i {SOUNDS_OUTPUT}")

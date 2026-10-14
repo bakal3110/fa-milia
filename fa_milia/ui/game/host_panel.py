@@ -58,7 +58,7 @@ def host_style(scale: float) -> str:
     #HostPanel #GoodButton {{ color: #1d7a3a; font-weight: bold; }}
     #HostPanel #BadButton {{ color: #b03030; font-weight: bold; }}
     #HostPanel #GoodButton:disabled, #HostPanel #BadButton:disabled {{ color: #a8acb5; }}
-    #HostPanel #BonusBox, #HostPanel #FinalBox {{ background: #fff0c2; border: 2px solid #e2b007;
+    #HostPanel #BonusBox, #HostPanel #FinalBox, #HostPanel #RevealBox {{ background: #fff0c2; border: 2px solid #e2b007;
                                                  border-radius: 6px; }}
     #HostPanel #BoxTitle {{ font-size: {pt(14)}; font-weight: bold; color: #8a5a00; }}
     #HostPanel #TimerLabel {{ font-size: {pt(16)}; font-weight: bold; }}
@@ -170,6 +170,7 @@ class HostPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 10)
         layout.addLayout(info_row)
+        layout.addWidget(self._build_reveal_box())
         layout.addWidget(self._build_answer_box())
         layout.addWidget(self._build_bonus_box())
         layout.addWidget(self._build_final_box())
@@ -214,11 +215,29 @@ class HostPanel(QWidget):
         box_layout.addLayout(answer_row)
         return self._answer_box
 
+    def _build_reveal_box(self) -> QFrame:
+        """Początek rundy: nazwa następnej kategorii do przedstawienia zawodnikom."""
+        self._reveal_box = QFrame()
+        self._reveal_box.setObjectName("RevealBox")
+        self._reveal_title = QLabel()
+        self._reveal_title.setObjectName("BoxTitle")
+        self._reveal_next = QLabel()
+        self._reveal_next.setObjectName("AnswerLabel")
+        reveal_button = _button("Odsłoń na ekranie ▶", "Spacja")
+        reveal_button.clicked.connect(self._controller.reveal_next_category)
+        row = QHBoxLayout()
+        row.addWidget(self._reveal_next, stretch=1)
+        row.addWidget(reveal_button)
+        box_layout = QVBoxLayout(self._reveal_box)
+        box_layout.addWidget(self._reveal_title)
+        box_layout.addLayout(row)
+        return self._reveal_box
+
     def _build_bonus_box(self) -> QFrame:
-        """Bonus: wybór zawodnika i stawki."""
+        """Premia: wybór zawodnika i stawki."""
         self._bonus_box = QFrame()
         self._bonus_box.setObjectName("BonusBox")
-        title = QLabel("BONUS – kto odpowiada i o ile gra?")
+        title = QLabel("PREMIA – kto odpowiada i o ile gra?")
         title.setObjectName("BoxTitle")
         self._bonus_player = QComboBox()
         self._bonus_player.currentIndexChanged.connect(self._update_bonus_limit)
@@ -298,8 +317,8 @@ class HostPanel(QWidget):
         self._undo_button.clicked.connect(controller.undo)
         self._menu_button.clicked.connect(self.menu_requested)
 
-        # Domyślnie wyłączone – żeby przypadkiem nie zdradzić bonusów graczom.
-        self._show_bonuses = QCheckBox("Pokaż mi położenie bonusów")
+        # Domyślnie wyłączone – żeby przypadkiem nie zdradzić premii graczom.
+        self._show_bonuses = QCheckBox("Pokaż mi położenie premii")
         self._show_bonuses.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._show_bonuses.setToolTip("Widoczne tylko w tym panelu. W trybie jednoekranowym "
                                       "pamiętaj, że panel może być widoczny dla graczy.")
@@ -381,6 +400,14 @@ class HostPanel(QWidget):
                                         else "Pytanie: (bez tekstu)")
             self._update_answer_text()
 
+        next_category = state.round.next_hidden_category() if phase == Phase.BOARD else None
+        self._reveal_box.setVisible(next_category is not None)
+        if next_category is not None:
+            number = state.round.revealed_categories + 1
+            total = len(state.round.categories)
+            self._reveal_title.setText(f"Przedstaw kategorie (od lewej) – kategoria {number} z {total}")
+            self._reveal_next.setText(f"Następna: {next_category.name}")
+
         self._bonus_box.setVisible(phase == Phase.BONUS)
         if phase == Phase.BONUS:
             self._refresh_bonus_box(state)
@@ -423,10 +450,13 @@ class HostPanel(QWidget):
     def _info_text(state: GameState) -> str:
         match state.phase:
             case Phase.BOARD:
+                if not state.round.all_categories_revealed():
+                    return (f"<b>Runda {state.round.number}</b> · odsłanianie kategorii – "
+                            "spacja odsłania kolejną")
                 return (f"<b>Runda {state.round.number}</b> · pozostało pól: "
                         f"{state.round.remaining()}")
             case Phase.BONUS:
-                return (f"<b>BONUS</b> · {state.current_category().name} · "
+                return (f"<b>PREMIA</b> · {state.current_category().name} · "
                         f"pole za {format_points(state.round.value(state.current.row))}")
             case Phase.QUESTION:
                 current = state.current
@@ -436,7 +466,7 @@ class HostPanel(QWidget):
                 status = "odsłonięta" if current.revealed else "ukryta przed graczami"
                 if current.is_bonus:
                     player = state.players[current.bonus_player].name
-                    worth = f"BONUS: {player} gra o {format_points(current.value)}"
+                    worth = f"PREMIA: {player} gra o {format_points(current.value)}"
                 else:
                     worth = f"{format_points(current.value)} pkt"
                 return (f"<b>{state.current_category().name}</b> · {worth}{kind} · "
@@ -463,7 +493,7 @@ class HostPanel(QWidget):
             if state.round.is_used(column, row):
                 text += " (wykorzystany)"
             parts.append(text)
-        return "Bonusy w tej rundzie: " + (" · ".join(parts) if parts else "brak")
+        return "Premie w tej rundzie: " + (" · ".join(parts) if parts else "brak")
 
     def _refresh_bonus_box(self, state: GameState) -> None:
         names = [player.name for player in state.players]
@@ -477,7 +507,7 @@ class HostPanel(QWidget):
         if current.bonus_player is not None:
             self._bonus_player.setCurrentIndex(current.bonus_player)
         elif key != self._bonus_key and state.last_correct is not None:
-            # Nowy bonus – podpowiedź: zwykle trafia go ten, kto wybierał pole.
+            # Nowa premia – podpowiedź: zwykle trafia ją ten, kto wybierał pole.
             self._bonus_player.setCurrentIndex(state.last_correct)
         if key != self._bonus_key:
             self._bonus_wager.setValue(0)

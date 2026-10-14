@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fa_milia.core.jsonio import read_json, write_json
 
+SETTINGS_VERSION = 2
 MIN_SCALE = 50
 MAX_SCALE = 250
 
@@ -22,10 +23,10 @@ class Settings:
     fullscreen: bool = True
     game_scale: int = 100  # skalowanie tekstu na ekranie gry, w procentach
     host_scale: int = 100  # skalowanie panelu prowadzącego, w procentach
-    # Poniższe ustawienia są używane od etapu E4.
-    timer_enabled: bool = False
+    timer_enabled: bool = False  # timer w zwykłych pytaniach (finał ma timer zawsze)
     question_seconds: int = 30
-    final_seconds: int = 60
+    final_seconds: int = 30
+    reveal_on_timeout: bool = True  # po upływie czasu pokaż odpowiedź (zwykłe pytania)
     volume: int = 80  # 0–100
 
     def normalized(self) -> "Settings":
@@ -38,6 +39,7 @@ class Settings:
             timer_enabled=bool(self.timer_enabled),
             question_seconds=_clamp(int(self.question_seconds), 5, 600),
             final_seconds=_clamp(int(self.final_seconds), 5, 600),
+            reveal_on_timeout=bool(self.reveal_on_timeout),
             volume=_clamp(int(self.volume), 0, 100),
         )
 
@@ -46,6 +48,9 @@ class Settings:
         # Bierzemy tylko znane klucze – nieznane (np. z nowszej wersji) pomijamy.
         known = {f.name for f in fields(cls)}
         values = {key: value for key, value in data.items() if key in known}
+        # Migracja: w wersji 1 domyślny czas finału wynosił 60 s, teraz 30 s.
+        if data.get("version", 1) < 2 and values.get("final_seconds") == 60:
+            values["final_seconds"] = 30
         try:
             return cls(**values).normalized()  # ** przekazuje słownik jako argumenty nazwane
         except (TypeError, ValueError):
@@ -64,4 +69,4 @@ def load_settings(path: Path) -> Settings:
 
 
 def save_settings(path: Path, settings: Settings) -> None:
-    write_json(path, asdict(settings.normalized()))
+    write_json(path, {"version": SETTINGS_VERSION, **asdict(settings.normalized())})

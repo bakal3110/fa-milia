@@ -154,7 +154,8 @@ class SettingsDialog(QDialog):
         self._game_value = QLabel()
         self._board_preview = BoardWidget()
         self._board_preview.set_round(
-            RoundState(1, [Category(name=name) for name in PREVIEW_CATEGORIES]), clickable=False)
+            RoundState(1, [Category(name=name) for name in PREVIEW_CATEGORIES],
+                       revealed_categories=len(PREVIEW_CATEGORIES)), clickable=False)
         self._board_preview.setFixedSize(480, 270)
         self._game_slider.valueChanged.connect(self._update_game_preview)
 
@@ -214,29 +215,35 @@ class SettingsDialog(QDialog):
     # --- Zakładka „Timer i dźwięk” ------------------------------------------
 
     def _build_timer_sound_tab(self) -> QWidget:
-        self._timer_enabled = QCheckBox("Włącz timer (odliczanie widoczne na ekranie gry)")
+        self._timer_enabled = QCheckBox("Timer w zwykłych pytaniach "
+                                        "(odliczanie widoczne na ekranie gry)")
         self._timer_enabled.setChecked(self._settings.timer_enabled)
         self._question_seconds = QSpinBox()
         self._question_seconds.setRange(5, 600)
         self._question_seconds.setSuffix(" s")
         self._question_seconds.setValue(self._settings.question_seconds)
+        self._reveal_on_timeout = QCheckBox("Po upływie czasu pokaż odpowiedź")
+        self._reveal_on_timeout.setChecked(self._settings.reveal_on_timeout)
+        self._timer_enabled.toggled.connect(self._question_seconds.setEnabled)
+        self._timer_enabled.toggled.connect(self._reveal_on_timeout.setEnabled)
+        self._question_seconds.setEnabled(self._settings.timer_enabled)
+        self._reveal_on_timeout.setEnabled(self._settings.timer_enabled)
         self._final_seconds = QSpinBox()
         self._final_seconds.setRange(5, 600)
         self._final_seconds.setSuffix(" s")
         self._final_seconds.setValue(self._settings.final_seconds)
-        self._timer_enabled.toggled.connect(self._question_seconds.setEnabled)
-        self._timer_enabled.toggled.connect(self._final_seconds.setEnabled)
-        self._question_seconds.setEnabled(self._settings.timer_enabled)
-        self._final_seconds.setEnabled(self._settings.timer_enabled)
 
         timer_group = QGroupBox("Timer")
         timer_form = QFormLayout(timer_group)
         timer_form.addRow(self._timer_enabled)
         timer_form.addRow("Czas na zwykłe pytanie:", self._question_seconds)
+        timer_form.addRow("", self._reveal_on_timeout)
         timer_form.addRow("Czas na pytanie finałowe:", self._final_seconds)
-        bonus_note = QLabel("Pytania bonusowe są zawsze bez timera.")
-        bonus_note.setStyleSheet("color: gray;")
-        timer_form.addRow(bonus_note)
+        timer_note = QLabel("Pytania z premią są zawsze bez timera. Pytanie finałowe ma "
+                            "timer zawsze – po upływie czasu odpowiedź odsłaniasz sam.")
+        timer_note.setWordWrap(True)
+        timer_note.setStyleSheet("color: gray;")
+        timer_form.addRow(timer_note)
 
         self._volume = QSlider(Qt.Orientation.Horizontal)
         self._volume.setRange(0, 100)
@@ -244,8 +251,8 @@ class SettingsDialog(QDialog):
         self._volume_label = QLabel()
         self._volume.valueChanged.connect(self._on_volume_changed)
         test_button = QPushButton("▶ Próbka")
-        test_button.setToolTip("Odtwarza dźwięk „bonus” z wybraną głośnością")
-        test_button.clicked.connect(lambda: self._effects.play("bonus"))
+        test_button.setToolTip("Odtwarza dźwięk „premia” z wybraną głośnością")
+        test_button.clicked.connect(lambda: self._effects.play("premia"))
         volume_row = QHBoxLayout()
         volume_row.addWidget(self._volume, stretch=1)
         volume_row.addWidget(self._volume_label)
@@ -361,6 +368,7 @@ class SettingsDialog(QDialog):
             timer_enabled=self._timer_enabled.isChecked(),
             question_seconds=self._question_seconds.value(),
             final_seconds=self._final_seconds.value(),
+            reveal_on_timeout=self._reveal_on_timeout.isChecked(),
             volume=self._volume.value(),
         )
         return settings.normalized()

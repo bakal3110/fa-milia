@@ -11,8 +11,12 @@ def make_game(players=("Ania", "Bartek", "Celina"), bonus_tiles=([], []),
     """Gra testowa. Domyślnie bez bonusów, żeby wynik testu był przewidywalny."""
     round1 = [complete_category(f"R1 K{i}") for i in range(6)]
     round2 = [complete_category(f"R2 K{i}") for i in range(6)]
-    return GameState.new(list(players), round1, round2, final_question=final,
+    game = GameState.new(list(players), round1, round2, final_question=final,
                          bonus_tiles=[list(bonus_tiles[0]), list(bonus_tiles[1])])
+    # W testach planszy pomijamy odsłanianie kategorii na początku rundy.
+    for round_state in game.rounds:
+        round_state.revealed_categories = len(round_state.categories)
+    return game
 
 
 def play_tile(game: GameState, column: int, row: int) -> None:
@@ -260,3 +264,59 @@ def test_undo_restores_previous_last_correct():
     history.apply("Ania dobrze", lambda s: s.mark(0, True))
     history.undo()
     assert history.state.last_correct is None
+
+
+# --- Odsłanianie kategorii na początku rundy ---------------------------------------
+
+
+def test_categories_are_revealed_left_to_right_before_play():
+    game = make_game()
+    for round_state in game.rounds:
+        round_state.revealed_categories = 0
+    assert game.round.next_hidden_category().name == "R1 K0"
+    with pytest.raises(GameError, match="odsłoń wszystkie kategorie"):
+        game.open_tile(0, 1)
+    names = [game.reveal_next_category().name for _ in range(6)]
+    assert names == [f"R1 K{i}" for i in range(6)]
+    assert game.round.next_hidden_category() is None
+    with pytest.raises(GameError, match="już odsłonięte"):
+        game.reveal_next_category()
+    game.open_tile(0, 1)
+    assert game.phase == Phase.QUESTION
+
+
+def test_second_round_starts_hidden_again():
+    game = make_game()
+    game.rounds[1].revealed_categories = 0
+    game.end_round()
+    game.next_round()
+    assert game.round.next_hidden_category().name == "R2 K0"
+
+
+def test_reveal_progress_survives_save_and_undo():
+    history = GameHistory(make_game())
+    history.state.rounds[0].revealed_categories = 2
+    history.apply("odsłoń", lambda s: s.reveal_next_category())
+    restored = GameState.from_dict(history.state.to_dict())
+    assert restored.round.revealed_categories == 3
+    history.undo()
+    assert history.state.round.revealed_categories == 2
+
+
+def test_old_saves_without_reveal_info_are_fully_revealed():
+    data = make_game().to_dict()
+    for round_data in data["rounds"]:
+        del round_data["revealed_categories"]
+    assert GameState.from_dict(data).round.all_categories_revealed()
+
+
+# --- Dobra odpowiedź pokazuje odpowiedź ---------------------------------------------
+
+
+def test_correct_answer_reveals_answer_but_wrong_does_not():
+    game = make_game()
+    game.open_tile(0, 2)
+    game.mark(0, False)
+    assert not game.current.revealed
+    game.mark(1, True)
+    assert game.current.revealed

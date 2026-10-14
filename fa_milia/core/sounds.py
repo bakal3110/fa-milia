@@ -1,44 +1,56 @@
-"""Dźwięki efektów: nazwy plików, instrukcja i wyszukiwanie w folderze sounds/."""
+"""Dźwięki i muzyka: nazwy plików, instrukcja i wyszukiwanie w folderze sounds/."""
 
 import shutil
 from pathlib import Path
 
 # Kolejność sprawdzania rozszerzeń (opisana w instrukcji).
-SOUND_EXTENSIONS_ORDER = (".wav", ".ogg", ".mp3")
+SOUND_EXTENSIONS_ORDER = (".mp3", ".ogg", ".wav")
 
 # Nazwa pliku (bez rozszerzenia) → kiedy jest odtwarzany.
 SOUND_EVENTS = {
-    "bonus": "trafienie na pole bonusowe (zalecany)",
-    "koniec_czasu": "upływ czasu na odpowiedź (zalecany)",
-    "dobra_odpowiedz": "prowadzący oznaczył dobrą odpowiedź",
-    "zla_odpowiedz": "prowadzący oznaczył złą odpowiedź",
-    "start_rundy": "początek rundy 1 i rundy 2",
-    "final": "początek finału",
+    "board_fill": "muzyka przy pojawianiu się planszy na początku rundy (ok. 2,5 s)",
+    "premia": "trafienie na pole z premią",
+    "good_answer": "dobra odpowiedź",
+    "zla_odpowiedz": "zła odpowiedź",
+    "time_up": "upływ czasu timera",
+    "final": "początek finału (ekran z kategorią finałową)",
+    "final_countdown": "muzyka w trakcie pytania finałowego (ok. 30 s)",
     "zwyciezca": "ekran zwycięzcy",
+}
+
+# Starsze nazwy plików – używane, gdy brak pliku o nowej nazwie.
+# Dzięki temu dźwięki dodane wcześniej (np. bonus.wav) nadal działają.
+LEGACY_NAMES = {
+    "board_fill": ["start_rundy"],
+    "premia": ["bonus"],
+    "good_answer": ["dobra_odpowiedz"],
+    "time_up": ["koniec_czasu"],
 }
 
 INSTRUCTION_FILE = "INSTRUKCJA.txt"
 DEFAULTS_MARKER = ".domyslne_dzwieki_dodane"
 
-INSTRUCTION_TEXT = """DŹWIĘKI W GRZE FA MILIA
-=======================
+INSTRUCTION_TEXT = """DŹWIĘKI I MUZYKA W GRZE FA MILIA
+================================
 
-Do tego folderu możesz wrzucić własne dźwięki. Program odtwarza je
+Do tego folderu możesz wrzucić własne dźwięki i muzykę. Program odtwarza je
 w określonych momentach gry. Plik musi mieć jedną z poniższych nazw
-(wielkość liter bez znaczenia) i rozszerzenie .wav, .ogg albo .mp3.
+(wielkość liter bez znaczenia) i rozszerzenie .mp3, .ogg albo .wav.
 
 {events}
 
-Przykład: plik „bonus.mp3” zagra, gdy ktoś trafi na pole bonusowe.
+Przykład: plik „premia.mp3” zagra, gdy ktoś trafi na pole z premią.
 
-Jeśli są dwa pliki o tej samej nazwie (np. bonus.wav i bonus.mp3),
-program użyje pierwszego w kolejności: .wav, .ogg, .mp3.
+Jeśli są dwa pliki o tej samej nazwie (np. premia.mp3 i premia.wav),
+program użyje pierwszego w kolejności: .mp3, .ogg, .wav.
+
+Starsze nazwy (bonus, koniec_czasu, dobra_odpowiedz, start_rundy) nadal
+działają, jeśli nie ma pliku o nowej nazwie.
 
 Brak pliku nie jest błędem – program po prostu nie zagra dźwięku.
 Głośność ustawisz w programie: Ustawienia → Timer i dźwięk.
 
-Przy pierwszym uruchomieniu program dodał tu proste dźwięki domyślne.
-Możesz je dowolnie podmienić albo usunąć – nie wrócą.
+Ten plik jest odtwarzany na nowo przy każdym uruchomieniu programu.
 """
 
 
@@ -54,9 +66,8 @@ def prepare_sounds_folder(sounds_dir: Path, defaults_dir: Path | None) -> None:
     Istniejące pliki użytkownika nigdy nie są nadpisywane.
     """
     sounds_dir.mkdir(parents=True, exist_ok=True)
-    instruction = sounds_dir / INSTRUCTION_FILE
-    if not instruction.exists():
-        instruction.write_text(instruction_text(), encoding="utf-8")
+    # Instrukcję zapisujemy zawsze – po aktualizacji programu opisuje nowe nazwy.
+    (sounds_dir / INSTRUCTION_FILE).write_text(instruction_text(), encoding="utf-8")
 
     marker = sounds_dir / DEFAULTS_MARKER
     if marker.exists() or defaults_dir is None or not defaults_dir.is_dir():
@@ -69,13 +80,17 @@ def prepare_sounds_folder(sounds_dir: Path, defaults_dir: Path | None) -> None:
 
 
 def find_sound(sounds_dir: Path, name: str) -> Path | None:
-    """Szuka pliku dźwięku o danej nazwie (np. "bonus"). None, jeśli go nie ma."""
+    """Szuka pliku dźwięku o danej nazwie (np. "premia"). None, jeśli go nie ma.
+
+    Najpierw nowa nazwa we wszystkich rozszerzeniach, potem starsze nazwy.
+    """
     if not sounds_dir.is_dir():
         return None
-    # Słownik: nazwa pliku małymi literami → ścieżka (żeby „Bonus.MP3” też działał).
+    # Słownik: nazwa pliku małymi literami → ścieżka (żeby „Premia.MP3” też działała).
     files = {path.name.lower(): path for path in sounds_dir.iterdir() if path.is_file()}
-    for extension in SOUND_EXTENSIONS_ORDER:
-        path = files.get(name + extension)
-        if path is not None:
-            return path
+    for candidate in [name] + LEGACY_NAMES.get(name, []):
+        for extension in SOUND_EXTENSIONS_ORDER:
+            path = files.get(candidate + extension)
+            if path is not None:
+                return path
     return None

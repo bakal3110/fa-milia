@@ -29,3 +29,17 @@ def test_broken_or_strange_file_gives_defaults(tmp_path):
 
 def test_unknown_keys_are_ignored():
     assert Settings.from_dict({"cos_nowego": 1, "game_scale": 120}).game_scale == 120
+
+
+def test_old_default_final_time_is_migrated_to_30(tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_text('{"final_seconds": 60, "timer_enabled": true}', encoding="utf-8")
+    assert load_settings(path).final_seconds == 30
+    path.write_text('{"final_seconds": 45}', encoding="utf-8")
+    assert load_settings(path).final_seconds == 45  # własny czas zostaje
+
+
+def test_new_files_keep_60_seconds_if_chosen(tmp_path):
+    path = tmp_path / "settings.json"
+    save_settings(path, Settings(final_seconds=60))
+    assert load_settings(path).final_seconds == 60
