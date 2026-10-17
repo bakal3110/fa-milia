@@ -127,6 +127,8 @@ przytrzymaniu przycisku „Pokaż mi”.
 - **Ocena odpowiedzi:** dobra odpowiedź od razu pokazuje odpowiedź na ekranie (dźwięk
   `good_answer`) i wyłącza timer. Zła odpowiedź wznawia wstrzymany timer – może odpowiadać
   następna osoba.
+- **Otwieranie pola:** pytanie (albo ekran PREMIA) „wyrasta” z wybranego pola do pełnego
+  ekranu w ok. 0,4 s; timer i dźwięk pytania ruszają dopiero po tej animacji.
 - **Timer** (Ustawienia → Timer i dźwięk): w zwykłych pytaniach rusza po pokazaniu pytania;
   klawisz P wstrzymuje go i wznawia (np. gdy ktoś zgłasza się do odpowiedzi). Po upływie
   czasu gra `time_up` i – jeśli włączone „Po upływie czasu pokaż odpowiedź” – odpowiedź
@@ -134,7 +136,7 @@ przytrzymaniu przycisku „Pokaż mi”.
 - **Finał** (przełącznik „Finał” przy wyborze kategorii): grają zawodnicy z wynikiem
   większym niż 0. Najpierw kategoria, potem stawki (od 0 do wyniku), pytanie i ocena.
   Pytanie finałowe ma timer zawsze (domyślnie 30 s) i muzykę `final_countdown`; po upływie
-  czasu odpowiedź odsłania prowadzący. Gdy nikt nie ma punktów, finał jest pomijany.
+  czasu pasek po prostu znika (bez dźwięku `time_up`), a odpowiedź odsłania prowadzący. Gdy nikt nie ma punktów, finał jest pomijany.
 
 ## Dźwięki i muzyka
 

@@ -178,6 +178,11 @@ class BoardWidget(QWidget):
                 tiles[(column, row)] = QRectF(x, y, column_width, unit)
         return headers, tiles
 
+    def tile_rect(self, column: int, row: int) -> QRectF:
+        """Prostokąt pola (we współrzędnych planszy) – np. do animacji otwierania pytania."""
+        _headers, tiles = self._layout()
+        return tiles.get((column, row), QRectF(self.rect()))
+
     def _tile_at(self, point: QPointF) -> tuple[int, int] | None:
         _headers, tiles = self._layout()
         for key, rect in tiles.items():  # .items() daje pary (klucz, wartość)

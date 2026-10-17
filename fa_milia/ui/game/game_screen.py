@@ -7,7 +7,7 @@ pól z premią. Wszystkie informacje tylko dla prowadzącego trafiają do HostPa
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QVariantAnimation, Signal
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QGridLayout,
@@ -41,6 +41,7 @@ SCREEN_STYLE = f"""
 """
 
 TIMER_WARNING_SECONDS = 5  # ostatnie sekundy – pasek robi się czerwony
+ZOOM_MS = 400  # czas „wyłaniania się” pytania z wybranego pola
 
 
 class ClickableView(QWidget):
@@ -245,12 +246,73 @@ def winner_title(state: GameState) -> str:
     return "Remis: " + ", ".join(winners[:-1]) + " i " + winners[-1] + "!"
 
 
+class ZoomTransition(QWidget):
+    """Warstwa nad ekranem gry: obrazek nowego widoku rośnie z pola planszy do pełnego ekranu.
+
+    Pod spodem nadal widać planszę – dopiero po zakończeniu animacji ekran
+    gry przełącza się na właściwy widok (pytanie albo PREMIA).
+    """
+
+    finished = Signal()
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        # Kliknięcia „przechodzą” przez warstwę – nie blokuje ekranu gry.
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._pixmap = QPixmap()
+        self._start = QRectF()
+        self._animation = QVariantAnimation(self)
+        self._animation.setStartValue(0.0)
+        self._animation.setEndValue(1.0)
+        self._animation.setDuration(ZOOM_MS)
+        # OutCubic: szybki start i łagodne „dohamowanie” na końcu.
+        self._animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._animation.valueChanged.connect(self.update)
+        self._animation.finished.connect(self._on_finished)
+        self.hide()
+
+    def is_running(self) -> bool:
+        return self._animation.state() == QVariantAnimation.State.Running
+
+    def start(self, start_rect: QRectF, pixmap: QPixmap) -> None:
+        self._start = start_rect
+        self._pixmap = pixmap
+        self.setGeometry(self.parentWidget().rect())
+        self.show()
+        self.raise_()
+        self._animation.start()
+
+    def abort(self) -> None:
+        self._animation.stop()
+        self.hide()
+
+    def paintEvent(self, event) -> None:
+        progress = float(self._animation.currentValue() or 0.0)
+        end = QRectF(self.rect())
+
+        # Interpolacja liniowa: od prostokąta pola (0.0) do całego ekranu (1.0).
+        def mix(a: float, b: float) -> float:
+            return a + (b - a) * progress
+
+        rect = QRectF(QPointF(mix(self._start.left(), end.left()), mix(self._start.top(), end.top())),
+                      QPointF(mix(self._start.right(), end.right()),
+                              mix(self._start.bottom(), end.bottom())))
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.drawPixmap(rect.toRect(), self._pixmap)
+
+    def _on_finished(self) -> None:
+        self.hide()
+        self.finished.emit()
+
+
 class GameScreen(QWidget):
     """Przełącza widoki (plansza / pytanie / ekrany specjalne / wyniki) zależnie od stanu."""
 
     tile_clicked = Signal(int, int)
     advance_requested = Signal()  # kliknięcie w pytanie, ekran PREMIA, tabelę wyników lub planszę w trakcie odsłaniania
     replay_requested = Signal()
+    transition_finished = Signal()  # koniec animacji otwierania pola
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -275,6 +337,15 @@ class GameScreen(QWidget):
         self._question.replay_requested.connect(self.replay_requested)
         self._splash.clicked.connect(self.advance_requested)
         self._scores.clicked.connect(self.advance_requested)
+
+        self._transition = ZoomTransition(self)
+        self._transition.finished.connect(self._on_transition_finished)
+        self._last_phase: Phase | None = None
+        self._zoom_tile: tuple[int, int] | None = None  # pole, z którego ma „wyrosnąć” widok
+        self._after_transition: QWidget | None = None  # widok do pokazania po animacji
+
+    def is_transitioning(self) -> bool:
+        return self._transition.is_running()
 
     def set_text_scale(self, scale: float) -> None:
         """Skalowanie tekstu z ustawień (1.0 = 100%)."""
@@ -303,13 +374,21 @@ class GameScreen(QWidget):
         if show_scores and state.phase not in (Phase.ROUND_END, Phase.FINISHED):
             self._scores.show_scores("Wyniki", _ranking_rows(state),
                                      "Kliknij lub naciśnij spację, aby wrócić do gry")
-            self._stack.setCurrentWidget(self._scores)
+            self._set_view(self._scores)
+            self._last_phase = None
             return
+
+        # Z planszy do pytania/PREMII: nowy widok „wyrasta” z wybranego pola.
+        self._zoom_tile = None
+        if (self._last_phase == Phase.BOARD and state.phase in (Phase.BONUS, Phase.QUESTION)
+                and state.current is not None and self.isVisible()):
+            self._zoom_tile = (state.current.column, state.current.row)
+        self._last_phase = state.phase
 
         match state.phase:
             case Phase.BOARD:
                 self._board.set_round(state.round)
-                self._stack.setCurrentWidget(self._board)
+                self._set_view(self._board)
 
             case Phase.BONUS:
                 current = state.current
@@ -319,7 +398,7 @@ class GameScreen(QWidget):
                     name = state.players[current.bonus_player].name
                     detail = f"{name} gra o {format_points(current.value)}"
                 self._splash.show_splash("PREMIA", state.current_category().display_name.upper(), detail)
-                self._stack.setCurrentWidget(self._splash)
+                self._set_view(self._splash)
 
             case Phase.QUESTION:
                 current = state.current
@@ -341,12 +420,12 @@ class GameScreen(QWidget):
                     hint = "Kliknij lub naciśnij spację, aby zobaczyć wyniki końcowe"
                 self._scores.show_scores(f"Koniec rundy {state.round.number}",
                                          _ranking_rows(state), hint)
-                self._stack.setCurrentWidget(self._scores)
+                self._set_view(self._scores)
 
             case Phase.FINAL_WAGERS:
                 self._splash.show_splash("FINAŁ", state.final.question.category.upper(),
                                          "Zawodnicy obstawiają…")
-                self._stack.setCurrentWidget(self._splash)
+                self._set_view(self._splash)
 
             case Phase.FINAL_QUESTION:
                 header = f"FINAŁ  ·  {state.final.question.category.upper()}"
@@ -359,10 +438,45 @@ class GameScreen(QWidget):
                     hint = "Finał pominięty – nikt nie miał dodatnich punktów. Dziękujemy za grę!"
                 self._scores.show_scores(winner_title(state), _ranking_rows(state), hint,
                                          highlight_winners=True)
-                self._stack.setCurrentWidget(self._scores)
+                self._set_view(self._scores)
 
     def _show_question(self, header: str, question: Question,
                        media_path: Callable[[str], Path], revealed: bool) -> None:
         path = media_path(question.media) if question.media else None
         self._question.show_question(header, question, path, revealed)
-        self._stack.setCurrentWidget(self._question)
+        self._set_view(self._question)
+
+    # --- Przełączanie widoków (z animacją otwierania pola) -----------------
+
+    def _set_view(self, view: QWidget) -> None:
+        if self._transition.is_running():
+            if view is self._board:
+                # Np. cofnięcie zaraz po kliknięciu – przerywamy animację.
+                self._transition.abort()
+                self._after_transition = None
+                self._stack.setCurrentWidget(view)
+            else:
+                self._after_transition = view  # pokażemy po zakończeniu animacji
+            return
+        if self._zoom_tile is not None:
+            tile, self._zoom_tile = self._zoom_tile, None
+            rect = self._board.tile_rect(*tile)
+            rect.translate(QPointF(self._board.mapTo(self, self._board.rect().topLeft())))
+            self._after_transition = view
+            self._transition.start(rect, self._render_view(view))
+            return
+        self._stack.setCurrentWidget(view)
+
+    def _render_view(self, view: QWidget) -> QPixmap:
+        """Obrazek widoku, który jeszcze nie jest widoczny (do animacji)."""
+        view.resize(self._stack.size())
+        view.ensurePolished()
+        if view.layout() is not None:
+            view.layout().activate()
+        return view.grab()
+
+    def _on_transition_finished(self) -> None:
+        if self._after_transition is not None:
+            self._stack.setCurrentWidget(self._after_transition)
+            self._after_transition = None
+        self.transition_finished.emit()

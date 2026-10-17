@@ -52,6 +52,8 @@ class GamePage(QWidget):
         self._shown_question_key: tuple | None = None
         # Rundy (indeksy), dla których już pokazaliśmy pojawianie się planszy.
         self._filled_rounds: set[int] = set()
+        # Pytanie czekające na koniec animacji otwierania pola.
+        self._pending_question_key: tuple | None = None
 
         self._screen = GameScreen()
         self._host = HostPanel(self._controller, self._timer)
@@ -61,6 +63,7 @@ class GamePage(QWidget):
         self._screen.tile_clicked.connect(self._controller.open_tile)
         self._screen.advance_requested.connect(self._controller.advance)
         self._screen.replay_requested.connect(self._play_question_sound)
+        self._screen.transition_finished.connect(self._on_transition_finished)
         self._host.menu_requested.connect(self.request_back)
         self._host.hide_requested.connect(self.toggle_overlay)
         self._controller.state_changed.connect(self._refresh)
@@ -229,18 +232,35 @@ class GamePage(QWidget):
             if state.phase == Phase.FINAL_QUESTION:
                 # Pytanie finałowe jest „użyte” od chwili wyświetlenia.
                 self._usage.mark_final(state.final.question.id)
-            if state.current_question().kind == ContentKind.SOUND:
-                self._play_question_sound()
-            if state.phase == Phase.FINAL_QUESTION:
-                # Finał ma timer zawsze, a w tle gra muzyka finałowa.
-                self._timer.start(self._settings.final_seconds)
-                self._effects.play("final_countdown")
-            elif self._settings.timer_enabled and not state.current.is_bonus:
-                # Pytanie z premią jest bez timera – odpowiada jeden zawodnik o własną stawkę.
-                self._timer.start(self._settings.question_seconds)
+            if self._screen.is_transitioning():
+                # Pytanie jeszcze „wyrasta” z pola – timer i dźwięk ruszą po animacji.
+                self._pending_question_key = key
+            else:
+                self._begin_question(state)
         if state.is_revealed():
             self._timer.stop()  # po odsłonięciu odpowiedzi timer znika
             self._effects.fade_out("final_countdown")
+
+    def _begin_question(self, state: GameState) -> None:
+        """Pytanie jest już w pełni na ekranie: dźwięk pytania, timer, muzyka finału."""
+        if state.is_revealed():
+            return
+        if state.current_question().kind == ContentKind.SOUND:
+            self._play_question_sound()
+        if state.phase == Phase.FINAL_QUESTION:
+            # Finał ma timer zawsze, a w tle gra muzyka finałowa.
+            self._timer.start(self._settings.final_seconds)
+            self._effects.play("final_countdown")
+        elif self._settings.timer_enabled and not state.current.is_bonus:
+            # Pytanie z premią jest bez timera – odpowiada jeden zawodnik o własną stawkę.
+            self._timer.start(self._settings.question_seconds)
+
+    def _on_transition_finished(self) -> None:
+        """Koniec animacji otwierania pola – startujemy odłożone pytanie."""
+        key, self._pending_question_key = self._pending_question_key, None
+        state = self._controller.state
+        if key is not None and state is not None and self._question_key(state) == key:
+            self._begin_question(state)
 
     def _maybe_play_board_fill(self, state: GameState) -> None:
         """Początek rundy: pola pojawiają się w grupach, w tle gra board_fill."""
@@ -253,9 +273,15 @@ class GamePage(QWidget):
         self._effects.play("board_fill")  # gra w całości, do końca pliku
 
     def _on_timer_expired(self) -> None:
+        state = self._controller.state
+        if state is not None and state.phase == Phase.FINAL_QUESTION:
+            # Finał: bez dźwięku i bez napisu „Czas!” – pasek po prostu znika,
+            # a muzyka finałowa gra do końca. Odpowiedź odsłania prowadzący.
+            self._timer.stop()
+            self._host.show_message("Czas minął – odsłoń odpowiedź, gdy zawodnicy będą gotowi.")
+            return
         self._effects.fade_out("final_countdown", 300)
         self._effects.play("time_up")
-        state = self._controller.state
         # W zwykłym pytaniu (opcjonalnie) od razu pokazujemy odpowiedź.
         # W finale odpowiedź odsłania prowadzący – zawodnicy kończą zapisywać.
         if (state is not None and state.phase == Phase.QUESTION and not state.current.revealed
