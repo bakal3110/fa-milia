@@ -206,7 +206,8 @@ def _category_from_text(path: Path, text: str, file_media: dict[int, list[Path]]
                 item.problems.append(f"Plik {media_path.name} nie pasuje do żadnego pytania "
                                      "(numery pytań to 1–5)")
 
-    item.category = Category(name=name, questions=questions)
+    item.category = Category(name=name, questions=questions,
+                             board_name=(parsed.header_board or "").strip())
     item.title = name
     if not parsed.blocks and not file_media:
         item.status = Status.ERROR

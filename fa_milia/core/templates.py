@@ -14,6 +14,8 @@ TEMPLATE_FILE_TEXT = """\
 #  1. Zapisz ten plik pod nową nazwą, np. zwierzeta.txt
 #     (Plik → Zapisz jako…). Najlepiej bez polskich liter i spacji.
 #  2. Po „KATEGORIA:” wpisz nazwę kategorii.
+#     (Nieobowiązkowo dopisz pod nią „PLANSZA: …” – napis dla graczy,
+#     jeśli ma być inny niż nazwa, np. KATEGORIA: Nauka 2 / PLANSZA: Nauka.)
 #  3. Po każdym „P:” wpisz pytanie, a po „O:” odpowiedź.
 #     Pytanie 1 jest najłatwiejsze, pytanie 5 najtrudniejsze.
 #  4. Zapisz plik.
@@ -72,6 +74,15 @@ Na górze pliku, po słowie KATEGORIA i dwukropku:
     KATEGORIA: Zwierzęta
 
 Ta nazwa pojawi się na planszy (tu polskie litery są w porządku).
+
+Nieobowiązkowo: jeśli masz kilka kategorii o podobnym temacie, możesz
+nazwać je np. „Nauka 1”, „Nauka 2”, a w linii PLANSZA wpisać napis,
+który zobaczą gracze (bez numeru):
+
+    KATEGORIA: Nauka 2
+    PLANSZA: Nauka
+
+Bez linii PLANSZA na planszy pojawi się nazwa z linii KATEGORIA.
 
 
 KROK 3. Wpisz 5 pytań i odpowiedzi

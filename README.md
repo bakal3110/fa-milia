@@ -105,6 +105,10 @@ Po rozpoczęciu gry plansza otworzy się na drugim monitorze, a panel prowadząc
 (z poprawnymi odpowiedziami) zostanie na laptopie. Monitor ekranu gry można wybrać
 w Ustawieniach → Ekrany („Pokaż nazwy na monitorach” pomaga je rozpoznać).
 
+Panel prowadzącego ma małą kopię planszy – kliknięcie pola otwiera pytanie (złota
+obwódka pokazuje otwarte pole, litera „P” – premie, gdy włączone „Pokaż mi położenie
+premii”). Zawodnicy są pokazani jako kafelki, do 4 w rzędzie.
+
 Przy jednym monitorze program działa w trybie jednoekranowym: panel prowadzącego jest
 nakładką na dole ekranu (F2 ukrywa/pokazuje), a odpowiedź widać dopiero po
 przytrzymaniu przycisku „Pokaż mi”.
@@ -193,6 +197,9 @@ P: Jak nazywa się to zwierzę?
 O: Kapibara
 ```
 
+- Opcjonalna linia `PLANSZA: Nauka` pod `KATEGORIA:` ustala napis widoczny dla graczy
+  (np. kategorie „Nauka 1”, „Nauka 2” w bibliotece, a na planszy po prostu „Nauka”).
+  To samo pole jest w edytorze kategorii jako „Nazwa na planszy”.
 - Numery 1–5 to rzędy (1 = najłatwiejsze); zamiast nich można pisać 100–500.
 - Zamiast `P:` można pisać `Pytanie:`, zamiast `O:` – `Odpowiedź:`/`Odpowiedz:`.
   Wielkość liter i polskie znaki w tych słowach nie mają znaczenia.

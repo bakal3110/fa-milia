@@ -25,9 +25,13 @@ from PySide6.QtWidgets import (
 
 from fa_milia.core.game_state import GameState, Phase
 from fa_milia.core.models import ContentKind
+from fa_milia.ui.game.board_widget import BoardWidget
 from fa_milia.ui.game.controller import GameController
 from fa_milia.ui.game.timer import GameTimer, format_seconds
 from fa_milia.ui.game.widgets import format_points
+
+MINI_BOARD_HEIGHT = 230  # wysokość małej planszy w panelu (przy skali 100%)
+TILES_PER_ROW = 4  # kafelków zawodników w jednym rzędzie
 
 HIDDEN_ANSWER = "●●●●●●  (przytrzymaj „Pokaż mi”)"
 
@@ -50,10 +54,12 @@ def host_style(scale: float) -> str:
     #HostPanel #QuestionLabel {{ font-size: {pt(12)}; color: #333; }}
     #HostPanel #AnswerLabel {{ font-size: {pt(17)}; font-weight: bold; color: #5a3d00; }}
     #HostPanel #MessageLabel {{ color: #b03030; }}
-    #HostPanel #PlayerRow {{ background: white; border: 1px solid #c5cbd8; border-radius: 6px; }}
-    #HostPanel #PlayerRow[lastCorrect="true"] {{ background: #fff8dc; border: 3px solid #e2b007; }}
-    #HostPanel #PlayerName {{ font-size: {pt(14)}; font-weight: bold; }}
-    #HostPanel #PlayerScore {{ font-size: {pt(16)}; font-weight: bold; }}
+    #HostPanel #PlayerTile {{ background: white; border: 1px solid #c5cbd8; border-radius: 8px; }}
+    #HostPanel #PlayerTile[lastCorrect="true"] {{ background: #fff8dc; border: 3px solid #e2b007; }}
+    #HostPanel #PlayerName {{ font-size: {pt(13)}; font-weight: bold; }}
+    #HostPanel #PlayerScore {{ font-size: {pt(20)}; font-weight: bold; }}
+    #HostPanel #AdjustButton {{ padding: 0px {4 * scale:.0f}px; }}
+    #HostPanel #BoardTitle {{ color: #555; }}
     #HostPanel #Star {{ font-size: {pt(16)}; color: #e2b007; }}
     #HostPanel #GoodButton {{ color: #1d7a3a; font-weight: bold; }}
     #HostPanel #BadButton {{ color: #b03030; font-weight: bold; }}
@@ -88,47 +94,54 @@ def _set_property(widget: QWidget, name: str, value) -> None:
     widget.style().polish(widget)
 
 
-class PlayerRow(QFrame):
-    """Wiersz zawodnika: znacznik ★, imię, wynik, ocena odpowiedzi, korekta."""
+class PlayerTile(QFrame):
+    """Kafelek zawodnika: ★, imię, korekta (±), wynik i przyciski oceny.
+
+    Kafelki układają się w siatkę (do 4 w rzędzie), więc nawet 8 zawodników
+    zajmuje tylko dwa rzędy.
+    """
 
     mark_requested = Signal(int, bool)  # (indeks zawodnika, czy dobrze)
     adjust_requested = Signal(int)
 
     def __init__(self, index: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setObjectName("PlayerRow")
+        self.setObjectName("PlayerTile")
         self._index = index
         self._star = QLabel()
         self._star.setObjectName("Star")
-        self._star.setFixedWidth(28)
         self._name = QLabel()
         self._name.setObjectName("PlayerName")
+        self._adjust = _button("±", "Ręczna korekta punktów", name="AdjustButton")
         self._score = QLabel()
         self._score.setObjectName("PlayerScore")
-        self._score.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._score.setMinimumWidth(90)
+        self._score.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._good = _button("✔ Dobrze", name="GoodButton")
         self._bad = _button("✘ Źle", name="BadButton")
-        self._adjust = _button("± Korekta", "Ręczna zmiana punktów")
         self._good.clicked.connect(lambda: self.mark_requested.emit(self._index, True))
         self._bad.clicked.connect(lambda: self.mark_requested.emit(self._index, False))
         self._adjust.clicked.connect(lambda: self.adjust_requested.emit(self._index))
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.addWidget(self._star)
-        layout.addWidget(self._name, stretch=1)
+        top = QHBoxLayout()
+        top.addWidget(self._star)
+        top.addWidget(self._name, stretch=1)
+        top.addWidget(self._adjust)
+        buttons = QHBoxLayout()
+        buttons.addWidget(self._good)
+        buttons.addWidget(self._bad)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 4, 8, 6)
+        layout.setSpacing(2)
+        layout.addLayout(top)
         layout.addWidget(self._score)
-        layout.addSpacing(12)
-        layout.addWidget(self._good)
-        layout.addWidget(self._bad)
-        layout.addWidget(self._adjust)
+        layout.addLayout(buttons)
 
     def update_row(self, name: str, score: int, can_mark: bool, mark: bool | None,
                    value: int, last_correct: bool) -> None:
         self._name.setText(name)
         self._score.setText(format_points(score))
         self._star.setText("★" if last_correct else "")
+        self._star.setVisible(last_correct)
         self.setToolTip("Ostatnio odpowiedział(a) dobrze" if last_correct else "")
         _set_property(self, "lastCorrect", last_correct)
         self._good.setEnabled(can_mark and mark is None)
@@ -149,7 +162,7 @@ class HostPanel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._controller = controller
         self._timer = timer
-        self._rows: list[PlayerRow] = []
+        self._rows: list[PlayerTile] = []
         self._overlay = False
         self._peeking = False  # czy prowadzący trzyma wciśnięte „Pokaż mi”
         self._final_spins: dict[int, QSpinBox] = {}  # stawki finałowe: zawodnik → pole
@@ -175,8 +188,9 @@ class HostPanel(QWidget):
         layout.addWidget(self._build_bonus_box())
         layout.addWidget(self._build_final_box())
         layout.addWidget(self._build_timer_row())
-        self._rows_layout = QVBoxLayout()
-        self._rows_layout.setSpacing(4)
+        layout.addWidget(self._build_mini_board())
+        self._rows_layout = QGridLayout()  # kafelki zawodników
+        self._rows_layout.setSpacing(6)
         layout.addLayout(self._rows_layout)
         layout.addLayout(self._build_actions())
         self._message = QLabel()
@@ -214,6 +228,22 @@ class HostPanel(QWidget):
         box_layout.addWidget(self._question_text)
         box_layout.addLayout(answer_row)
         return self._answer_box
+
+    def _build_mini_board(self) -> QWidget:
+        """Mała kopia planszy graczy – kliknięcie pola otwiera pytanie."""
+        self._board_box = QWidget()
+        title = QLabel("Plansza – kliknij pole, żeby otworzyć pytanie")
+        title.setObjectName("BoardTitle")
+        self._mini_board = BoardWidget()
+        self._mini_board.tile_clicked.connect(self._controller.open_tile)
+        # Podczas odsłaniania kategorii kliknięcie odsłania następną (jak na ekranie gry).
+        self._mini_board.advance_requested.connect(self._controller.reveal_next_category)
+        box_layout = QVBoxLayout(self._board_box)
+        box_layout.setContentsMargins(0, 0, 0, 0)
+        box_layout.setSpacing(2)
+        box_layout.addWidget(title)
+        box_layout.addWidget(self._mini_board)
+        return self._board_box
 
     def _build_reveal_box(self) -> QFrame:
         """Początek rundy: nazwa następnej kategorii do przedstawienia zawodnikom."""
@@ -343,6 +373,7 @@ class HostPanel(QWidget):
 
     def set_scale(self, scale: float) -> None:
         self.setStyleSheet(host_style(scale))
+        self._mini_board.setFixedHeight(int(MINI_BOARD_HEIGHT * scale))
 
     def set_overlay(self, overlay: bool) -> None:
         """Tryb nakładki: odpowiedź zasłonięta, przycisk „Ukryj panel”."""
@@ -361,11 +392,14 @@ class HostPanel(QWidget):
         for row in self._rows:
             row.deleteLater()
         self._rows = []
+        columns = min(count, TILES_PER_ROW)
         for index in range(count):
-            row = PlayerRow(index)
+            row = PlayerTile(index)
             row.mark_requested.connect(self._controller.mark)
             row.adjust_requested.connect(self._ask_adjustment)
-            self._rows_layout.addWidget(row)
+            # divmod(7, 4) == (1, 3): siódmy kafelek trafia do rzędu 1, kolumny 3.
+            line, column = divmod(index, columns)
+            self._rows_layout.addWidget(row, line, column)
             # Qt pokazuje nowe widżety w układzie z opóźnieniem; show() od razu
             # sprawia, że są wliczane do wymaganej wysokości panelu.
             row.show()
@@ -391,6 +425,7 @@ class HostPanel(QWidget):
         else:
             self._turn.setText(f"★ Ostatnio dobrze: {state.players[state.last_correct].name}")
 
+        self._refresh_mini_board(state)
         self._info.setText(self._info_text(state))
         shows_question = phase in (Phase.QUESTION, Phase.FINAL_WAGERS, Phase.FINAL_QUESTION)
         self._answer_box.setVisible(shows_question)
@@ -406,7 +441,10 @@ class HostPanel(QWidget):
             number = state.round.revealed_categories + 1
             total = len(state.round.categories)
             self._reveal_title.setText(f"Przedstaw kategorie (od lewej) – kategoria {number} z {total}")
-            self._reveal_next.setText(f"Następna: {next_category.name}")
+            text = f"Następna: {next_category.display_name}"
+            if next_category.display_name != next_category.name:
+                text += f"   (w bibliotece: {next_category.name})"
+            self._reveal_next.setText(text)
 
         self._bonus_box.setVisible(phase == Phase.BONUS)
         if phase == Phase.BONUS:
@@ -439,6 +477,19 @@ class HostPanel(QWidget):
         self._bonus_info.setText(self._bonus_locations(state))
         self._update_timer()
 
+    def _refresh_mini_board(self, state: GameState) -> None:
+        phase = state.phase
+        # W trybie nakładki plansza graczy jest na tym samym ekranie – kopia zbędna.
+        visible = not self._overlay and phase in (Phase.BOARD, Phase.BONUS, Phase.QUESTION)
+        self._board_box.setVisible(visible)
+        if not visible:
+            return
+        self._mini_board.set_round(state.round, clickable=phase == Phase.BOARD)
+        current = state.current
+        self._mini_board.set_highlight((current.column, current.row) if current else None)
+        show_premia = self._show_bonuses.isChecked()
+        self._mini_board.set_marked(set(state.round.bonuses) if show_premia else set())
+
     @staticmethod
     def _shown_value(state: GameState, index: int) -> int:
         """Ile punktów pokazać na przyciskach oceny danego zawodnika."""
@@ -456,7 +507,7 @@ class HostPanel(QWidget):
                 return (f"<b>Runda {state.round.number}</b> · pozostało pól: "
                         f"{state.round.remaining()}")
             case Phase.BONUS:
-                return (f"<b>PREMIA</b> · {state.current_category().name} · "
+                return (f"<b>PREMIA</b> · {state.current_category().display_name} · "
                         f"pole za {format_points(state.round.value(state.current.row))}")
             case Phase.QUESTION:
                 current = state.current
@@ -469,7 +520,7 @@ class HostPanel(QWidget):
                     worth = f"PREMIA: {player} gra o {format_points(current.value)}"
                 else:
                     worth = f"{format_points(current.value)} pkt"
-                return (f"<b>{state.current_category().name}</b> · {worth}{kind} · "
+                return (f"<b>{state.current_category().display_name}</b> · {worth}{kind} · "
                         f"odpowiedź {status}")
             case Phase.ROUND_END:
                 return f"<b>Koniec rundy {state.round.number}</b>"
@@ -488,7 +539,7 @@ class HostPanel(QWidget):
     def _bonus_locations(state: GameState) -> str:
         parts = []
         for column, row in state.round.bonuses:
-            name = state.round.categories[column].name
+            name = state.round.categories[column].display_name
             text = f"{name} – {format_points(state.round.value(row))}"
             if state.round.is_used(column, row):
                 text += " (wykorzystany)"

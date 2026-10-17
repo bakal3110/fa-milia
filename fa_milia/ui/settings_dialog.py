@@ -36,7 +36,7 @@ from fa_milia.core.sounds import SOUND_EVENTS, find_sound, is_builtin
 from fa_milia.resource_paths import resource_path
 from fa_milia.core.usage import UsageMemory
 from fa_milia.ui.game.board_widget import BoardWidget
-from fa_milia.ui.game.host_panel import PlayerRow, host_style
+from fa_milia.ui.game.host_panel import PlayerTile, host_style
 from fa_milia.ui.screens import describe_screen
 from fa_milia.ui.sound_effects import SoundEffects
 
@@ -180,7 +180,7 @@ class SettingsDialog(QDialog):
         self._host_preview = QWidget()
         self._host_preview.setObjectName("HostPanel")  # żeby działały style panelu
         self._host_preview.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        preview_row = PlayerRow(0)
+        preview_row = PlayerTile(0)
         preview_row.update_row("Ania", 1200, True, None, 300, last_correct=True)
         QVBoxLayout(self._host_preview).addWidget(preview_row)
         self._host_slider.valueChanged.connect(self._update_host_preview)

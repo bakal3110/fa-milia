@@ -127,13 +127,23 @@ def _empty_questions() -> list[Question]:
 
 @dataclass
 class Category:
-    """Kategoria: nazwa i dokładnie 5 pytań (indeks 0 = rząd 1, najłatwiejszy)."""
+    """Kategoria: nazwa i dokładnie 5 pytań (indeks 0 = rząd 1, najłatwiejszy).
+
+    - name:       nazwa w bibliotece (do porządkowania, np. „Nauka 2”),
+    - board_name: napis wyświetlany w grze (np. „Nauka”); pusty = taki jak name.
+    """
 
     name: str = ""
     # field(default_factory=...) – każda nowa kategoria dostaje WŁASNĄ listę.
     # Zwykłe `= []` sprawiłoby, że wszystkie obiekty dzieliłyby jedną listę.
     questions: list[Question] = field(default_factory=_empty_questions)
     id: str = field(default_factory=new_id)
+    board_name: str = ""
+
+    @property
+    def display_name(self) -> str:
+        """Nazwa pokazywana na planszy i ekranie gry."""
+        return self.board_name.strip() or self.name
 
     def problems(self) -> list[str]:
         problems = []
@@ -156,6 +166,7 @@ class Category:
             "version": FORMAT_VERSION,
             "id": self.id,
             "name": self.name,
+            "board_name": self.board_name,
             "questions": [q.to_dict() for q in self.questions],
         }
 
@@ -170,6 +181,7 @@ class Category:
             name=str(data.get("name") or ""),
             questions=questions,
             id=str(data.get("id") or new_id()),
+            board_name=str(data.get("board_name") or ""),
         )
 
 

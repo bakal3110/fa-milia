@@ -35,8 +35,15 @@ class CategoryEditorPage(LibraryEditorPage):
         self._name_edit = QLineEdit()
         self._name_edit.setPlaceholderText("np. Zwierzęta")
         self._name_edit.textChanged.connect(self._on_form_changed)
+        self._board_name_edit = QLineEdit()
+        self._board_name_edit.setPlaceholderText("puste = taka sama jak nazwa kategorii")
+        self._board_name_edit.setToolTip(
+            "Napis widoczny dla graczy na planszy. Przydaje się, gdy w bibliotece masz "
+            "np. „Nauka 1” i „Nauka 2”, a na planszy ma być po prostu „Nauka”.")
+        self._board_name_edit.textChanged.connect(self._on_form_changed)
         name_row = QFormLayout()
         name_row.addRow("Nazwa kategorii:", self._name_edit)
+        name_row.addRow("Nazwa na planszy:", self._board_name_edit)
         layout.addLayout(name_row)
 
         self._question_editors: list[QuestionEditor] = []
@@ -55,13 +62,17 @@ class CategoryEditorPage(LibraryEditorPage):
         return self._library.categories.get(item_id)
 
     def _item_title(self, item: Category) -> str:
-        return item.name or "(bez nazwy)"
+        title = item.name or "(bez nazwy)"
+        if item.board_name.strip() and item.board_name.strip() != item.name.strip():
+            title += f"  → {item.board_name.strip()}"
+        return title
 
     def _item_problems(self, item: Category) -> list[str]:
         return self._library.category_problems(item)
 
     def _load_form(self, item: Category) -> None:
         self._name_edit.setText(item.name)
+        self._board_name_edit.setText(item.board_name)
         # zip łączy dwie listy w pary: (edytor 1, pytanie 1), (edytor 2, pytanie 2)…
         for editor, question in zip(self._question_editors, item.questions):
             editor.set_question(question)
@@ -70,6 +81,7 @@ class CategoryEditorPage(LibraryEditorPage):
         return Category(
             id=self._current_id,
             name=self._name_edit.text().strip(),
+            board_name=self._board_name_edit.text().strip(),
             questions=[editor.question() for editor in self._question_editors],
         )
 

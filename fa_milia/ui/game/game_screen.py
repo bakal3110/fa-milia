@@ -318,13 +318,13 @@ class GameScreen(QWidget):
                 else:
                     name = state.players[current.bonus_player].name
                     detail = f"{name} gra o {format_points(current.value)}"
-                self._splash.show_splash("PREMIA", state.current_category().name.upper(), detail)
+                self._splash.show_splash("PREMIA", state.current_category().display_name.upper(), detail)
                 self._stack.setCurrentWidget(self._splash)
 
             case Phase.QUESTION:
                 current = state.current
                 question = state.current_question()
-                category = state.current_category().name.upper()
+                category = state.current_category().display_name.upper()
                 if current.is_bonus:
                     player = state.players[current.bonus_player].name
                     header = f"PREMIA · {category} · {player} gra o {format_points(current.value)}"

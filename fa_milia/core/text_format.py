@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 # Słowa-klucze (po uproszczeniu: małe litery, bez polskich znaków) → znaczenie.
 KEY_ALIASES = {
     "kategoria": "category",
+    "plansza": "board",  # opcjonalny napis na planszy (gdy inny niż nazwa kategorii)
     "p": "question",
     "pytanie": "question",
     "o": "answer",
@@ -79,6 +80,7 @@ class TextBlock:
 @dataclass
 class ParsedText:
     header_category: str | None = None  # „KATEGORIA:” przed pierwszym numerem
+    header_board: str | None = None  # „PLANSZA:” przed pierwszym numerem
     blocks: list[TextBlock] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
 
@@ -109,6 +111,15 @@ def parse_text(text: str) -> ParsedText:
         key = KEY_ALIASES.get(simplify(key_match.group(1))) if key_match else None
         if key is not None:
             value = key_match.group(2).strip()
+            if key == "board":
+                if current is None:
+                    result.header_board = value
+                else:
+                    result.problems.append(
+                        f"linia {line_number}: „PLANSZA:” wpisz na górze pliku, "
+                        "pod „KATEGORIA:”")
+                target = None
+                continue
             if key == "category":
                 if current is None:
                     if result.header_category is not None:
@@ -165,16 +176,22 @@ def _field_lines(prefix: str, value: str) -> list[str]:
     return [f"{prefix} {lines[0]}".rstrip()] + lines[1:]
 
 
-def category_to_text(name: str, questions: list[tuple[str, str]], stem: str) -> str:
-    """Tekst pliku kategorii. questions: lista (treść/podpis, odpowiedź) dla rzędów 1–5."""
+def category_to_text(name: str, questions: list[tuple[str, str]], stem: str,
+                     board_name: str = "") -> str:
+    """Tekst pliku kategorii. questions: lista (treść/podpis, odpowiedź) dla rzędów 1–5.
+
+    board_name: napis na planszy, jeśli inny niż nazwa (linia „PLANSZA:”).
+    """
     lines = [
         "# Kategoria do programu Fa milia.",
         f"# Zdjęcia i dźwięki nazwij: {stem}_<numer pytania>.<rozszerzenie>,",
         f"# np. {stem}_2.jpg albo {stem}_3.mp3",
         "",
         f"KATEGORIA: {name}",
-        "",
     ]
+    if board_name.strip() and board_name.strip() != name.strip():
+        lines.append(f"PLANSZA: {board_name.strip()}")
+    lines.append("")
     for row, (question, answer) in enumerate(questions, start=1):
         lines.append(str(row))
         lines += _field_lines("P:", question)

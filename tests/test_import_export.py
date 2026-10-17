@@ -278,3 +278,30 @@ def test_template_contents(tmp_path):
     assert template.count("P:") >= 5 and "KATEGORIA:" in template
     assert "zwierzeta_2.jpg" in instruction
     assert create_template(tmp_path).name == "Szablon pytań Fa milia (2)"
+
+
+def test_board_name_line_is_imported_and_exported(tmp_path, library):
+    folder = tmp_path / "import"
+    write(folder, "nauka_2.txt", FULL.replace("KATEGORIA: Zwierzęta", "KATEGORIA: Nauka 2\nplansza: Nauka"))
+    [item] = scan_folder(folder, library).items
+    assert item.status == Status.OK
+    assert (item.category.name, item.category.display_name) == ("Nauka 2", "Nauka")
+    apply_import(library, [item])
+
+    exported = export_to_folder(library, list(library.categories), [], tmp_path / "out")
+    text = (exported / "nauka_2.txt").read_text(encoding="utf-8-sig")
+    assert "PLANSZA: Nauka" in text
+
+    from fa_milia.core.library import Library
+    from fa_milia.core.paths import DataDir
+    other = Library(DataDir(tmp_path / "inna"))
+    apply_import(other, scan_folder(exported, other).items)
+    [category] = other.categories.values()
+    assert category.display_name == "Nauka"
+
+
+def test_board_name_line_inside_question_is_reported(tmp_path, library):
+    folder = tmp_path / "import"
+    write(folder, "k.txt", FULL.replace("1\nP: Ile", "1\nPLANSZA: X\nP: Ile"))
+    item = scan_folder(folder, library).items[0]
+    assert any("PLANSZA" in p and "na górze pliku" in p for p in item.problems)

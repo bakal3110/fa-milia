@@ -82,3 +82,17 @@ def test_kind_for_file_ignores_letter_case():
     assert kind_for_file("ZDJECIE.JPG") == ContentKind.IMAGE
     assert kind_for_file("melodia.Ogg") == ContentKind.SOUND
     assert kind_for_file("notatki.txt") is None
+
+
+def test_board_name_defaults_to_name():
+    category = complete_category("Nauka 2")
+    assert category.display_name == "Nauka 2"
+    category.board_name = "  Nauka "
+    assert category.display_name == "Nauka"
+    assert Category.from_dict(category.to_dict()) == category
+
+
+def test_old_category_files_without_board_name():
+    data = complete_category("Kosmos").to_dict()
+    del data["board_name"]
+    assert Category.from_dict(data).display_name == "Kosmos"

@@ -62,7 +62,8 @@ def export_to_folder(library: Library, category_ids: list[str], final_ids: list[
         category = library.categories[category_id]
         stem = file_stem_for(category.name, taken)
         rows = [(q.text, q.answer) for q in category.questions]
-        write_notepad_text(folder / f"{stem}.txt", category_to_text(category.name, rows, stem))
+        text = category_to_text(category.name, rows, stem, category.board_name)
+        write_notepad_text(folder / f"{stem}.txt", text)
         for row, question in enumerate(category.questions, start=1):
             _copy_media(library, question.media, folder, f"{stem}_{row}")
 

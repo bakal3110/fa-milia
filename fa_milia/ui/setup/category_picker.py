@@ -89,7 +89,10 @@ class CategoryPicker(QWidget):
         self._table.setRowCount(len(categories))
         for row, category in enumerate(categories):
             used = category.id in used_ids
-            name_item = QTableWidgetItem(category.name)
+            label = category.name
+            if category.display_name != category.name:
+                label += f"   → na planszy: {category.display_name}"
+            name_item = QTableWidgetItem(label)
             name_item.setData(ID_ROLE, category.id)
             status_item = QTableWidgetItem("użyta" if used else "")
             if used:

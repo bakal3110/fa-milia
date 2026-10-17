@@ -68,12 +68,12 @@ class GameController(QObject):
     def reveal_next_category(self) -> None:
         category = self.state.round.next_hidden_category()
         if category is not None:
-            self._apply(f"Odsłonięcie kategorii: {category.name}",
+            self._apply(f"Odsłonięcie kategorii: {category.display_name}",
                         lambda s: s.reveal_next_category())
 
     def open_tile(self, column: int, row: int) -> None:
         state = self.state
-        name = state.round.categories[column].name
+        name = state.round.categories[column].display_name
         value = format_points(state.round.value(row))
         if self._apply(f"Otwarcie pola: {name} za {value}", lambda s: s.open_tile(column, row)):
             if self.state.phase == Phase.BONUS:

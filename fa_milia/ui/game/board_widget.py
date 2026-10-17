@@ -9,7 +9,7 @@ Na początku rundy:
 import random
 
 from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from fa_milia.config import APP_NAME, ROW_COUNT
@@ -41,6 +41,10 @@ class BoardWidget(QWidget):
         self._hover: tuple[int, int] | None = None
         self._clickable = True
         self._scale = 1.0  # skalowanie tekstu z ustawień
+        # Tylko na planszy w panelu prowadzącego: obwiedzione pole (otwarte pytanie)
+        # i pola oznaczone literą „P” (premia).
+        self._highlight: tuple[int, int] | None = None
+        self._marked: set[tuple[int, int]] = set()
 
         # Animacja pojawiania się pól: pole → moment pojawienia się (ms od startu).
         self._appear_at: dict[tuple[int, int], int] = {}
@@ -79,6 +83,18 @@ class BoardWidget(QWidget):
     def set_scale(self, scale: float) -> None:
         self._scale = scale
         self.update()
+
+    def set_highlight(self, tile: tuple[int, int] | None) -> None:
+        """Obwódka wokół pola (np. aktualnie otwartego pytania)."""
+        if tile != self._highlight:
+            self._highlight = tile
+            self.update()
+
+    def set_marked(self, tiles: set[tuple[int, int]]) -> None:
+        """Pola oznaczone literą „P” – położenie premii widoczne dla prowadzącego."""
+        if tiles != self._marked:
+            self._marked = set(tiles)
+            self.update()
 
     def _intro_running(self) -> bool:
         """Czy trwa początek rundy (kategorie jeszcze zasłonięte albo pola się pojawiają)."""
@@ -190,6 +206,12 @@ class BoardWidget(QWidget):
                 painter.setBrush(TILE_USED)
                 painter.drawRoundedRect(rect, radius, radius)
                 continue
+            if (column, row) == self._highlight:
+                # Złota obwódka wokół otwartego pola (rysowana pod polem, więc wystaje).
+                margin = max(2.0, rect.height() * 0.06)
+                painter.setBrush(QColor(GOLD))
+                painter.drawRoundedRect(rect.adjusted(-margin, -margin, margin, margin),
+                                        radius + margin, radius + margin)
             painter.setOpacity(self._tile_opacity((column, row)))
             hovered = self._clickable and not self._intro_running() and self._hover == (column, row)
             painter.setBrush(TILE_HOVER if hovered else TILE_BLUE)
@@ -198,8 +220,21 @@ class BoardWidget(QWidget):
             draw_fitted_text(painter, rect.adjusted(padding, padding, -padding, -padding),
                              format_points(self._round.value(row)), QColor(GOLD),
                              int(rect.height() * 0.62 * self._scale), shadow=True)
+            if (column, row) in self._marked:
+                self._paint_marker(painter, rect)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setOpacity(1.0)
+
+    @staticmethod
+    def _paint_marker(painter: QPainter, rect: QRectF) -> None:
+        """Mała złota litera „P” w rogu pola z premią."""
+        size = rect.height() * 0.38
+        corner = QRectF(rect.left() + size * 0.15, rect.top() + size * 0.15, size, size)
+        painter.setBrush(QColor(GOLD))
+        painter.setPen(QPen(QColor(NAVY), max(1.0, size * 0.06)))
+        painter.drawEllipse(corner)
+        draw_fitted_text(painter, corner, "P", QColor(NAVY), int(size * 0.8))
+        painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_header(self, painter: QPainter, column: int, rect: QRectF, radius: float) -> None:
         """Tabliczka z nazwą kategorii – zasłonięta („Fa milia”) albo odsłonięta.
@@ -228,7 +263,7 @@ class BoardWidget(QWidget):
         padding = rect.width() * 0.06
         inner = drawn.adjusted(padding, padding * squeeze, -padding, -padding * squeeze)
         if revealed:
-            name = self._round.categories[column].name.upper()
+            name = self._round.categories[column].display_name.upper()
             draw_fitted_text(painter, inner, name, QColor("white"),
                              int(rect.height() * 0.32 * self._scale * squeeze))
         else:
